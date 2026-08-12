@@ -150,11 +150,11 @@ function GeneratePage({ s }: { s: SharedState }) {
               <option value="kimi">kimi</option><option value="custom">自定义模型</option>
             </select>
           </div>
-          <div className="form-group"><label>🏷️ 品牌</label>
-            <input value={s.extraInputs['brand'] ?? ''} placeholder="如 爱他美" onChange={(e) => s.setExtraInputs({ ...s.extraInputs, brand: e.target.value })} />
+          <div className="form-group"><label>🏷️ 品牌 <code className="var-tag">{'{品牌}'}</code></label>
+            <input value={s.extraInputs['品牌'] ?? ''} placeholder="如 爱他美" onChange={(e) => s.setExtraInputs({ ...s.extraInputs, '品牌': e.target.value })} />
           </div>
-          <div className="form-group"><label>🎨 语气</label>
-            <input value={s.extraInputs['tone'] ?? ''} placeholder="如 专业 / 亲切" onChange={(e) => s.setExtraInputs({ ...s.extraInputs, tone: e.target.value })} />
+          <div className="form-group"><label>🎨 语气 <code className="var-tag">{'{语气}'}</code></label>
+            <input value={s.extraInputs['语气'] ?? ''} placeholder="如 专业 / 亲切" onChange={(e) => s.setExtraInputs({ ...s.extraInputs, '语气': e.target.value })} />
           </div>
         </div>
         {dimensions.length === 0 && (
@@ -163,7 +163,7 @@ function GeneratePage({ s }: { s: SharedState }) {
         <div className="form-row">
           {dimensions.map((d) => (
             <div className="form-group" key={d.id}>
-              <label>{d.kind === 'prompt' ? '✍️' : '🏷️'} {d.name}</label>
+              <label>{d.kind === 'prompt' ? '✍️' : '🏷️'} {d.name} <code className="var-tag">{'{'+d.name+'}'}</code>{d.kind === 'prompt' && <code className="var-tag" style={{ marginLeft: 4 }}>{'{'+d.name+'约束}'}</code>}</label>
               <select value={selections[d.name] ?? ''} onChange={(e) => setSelections({ ...selections, [d.name]: e.target.value })}>
                 <option value="">— 请选择 {d.name} —</option>
                 {d.choices.map((c) => <option key={c.id} value={c.label}>{c.label}</option>)}
@@ -173,15 +173,15 @@ function GeneratePage({ s }: { s: SharedState }) {
         </div>
 
         <div style={{ marginTop: 4 }}>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>补充输入（提示词里用 <code>{'{var}'}</code> 引用，如 {'{受众}'}）：</div>
-          {Object.entries(s.extraInputs).filter(([k]) => k !== 'brand' && k !== 'tone').map(([name, value]) => (
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>补充输入（在提示词里用对应 <code>{'{var}'}</code> 引用）：</div>
+          {Object.entries(s.extraInputs).filter(([k]) => k !== '品牌' && k !== '语气').map(([name, value]) => (
             <div className="form-row" key={name} style={{ alignItems: 'flex-end' }}>
               <div className="form-group"><label>变量名</label>
                 <input value={name} onChange={(e) => {
                   const rest = { ...s.extraInputs }; delete rest[name]; rest[e.target.value] = value; s.setExtraInputs(rest)
                 }} />
               </div>
-              <div className="form-group" style={{ flex: 2 }}><label>值</label>
+              <div className="form-group" style={{ flex: 2 }}><label>值 <code className="var-tag">{'{'+name+'}'}</code></label>
                 <input value={value} onChange={(e) => s.setExtraInputs({ ...s.extraInputs, [name]: e.target.value })} />
               </div>
               <button className="btn btn-danger" style={{ padding: '8px 12px', fontSize: 12 }} onClick={() => { const rest = { ...s.extraInputs }; delete rest[name]; s.setExtraInputs(rest) }}>🗑️</button>
@@ -349,7 +349,7 @@ function SlotsPage() {
     <div className="container">
       <div className="panel">
         <div className="panel-header"><div className="icon">🧠</div><h2>写作设定</h2><span className="tag">设定</span></div>
-        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>所有内容的起点。放稳定的背景：身份、品牌调性等。每次生成都带。可用 {'{var}'} 引用变量（如 {'{brand}'}、{'{产品知识}'}）。</p>
+        <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>所有内容的起点。放稳定的背景：身份、品牌调性等。每次生成都带。可用 {'{var}'} 引用变量（如 {'{品牌}'}、{'{产品知识}'}）。</p>
         <div className="form-group"><textarea style={{ minHeight: 140 }} value={systemBody} onChange={(e) => setSystemBody(e.target.value)} /></div>
         <div className="btn-row" style={{ justifyContent: 'flex-start' }}><button className="btn btn-primary" onClick={saveSystem}>💾 保存</button></div>
       </div>
@@ -411,13 +411,13 @@ function DocsPage() {
             <li><b>写作设定</b>（稳定背景）：放身份、调性。每次生成都带。</li>
             <li><b>风格提示词</b>（本次任务）：放本次主题、场景等。</li>
           </ul>
-          <p>变量用 <code>{'{var}'}</code> 引用，写在哪个提示词里就在哪部分渲染。例如 <code>{'{brand}'}</code> 写进写作设定就进背景，写进风格提示词就进本次任务。</p>
+          <p>变量用 <code>{'{var}'}</code> 引用，写在哪个提示词里就在哪部分渲染。例如 <code>{'{品牌}'}</code> 写进写作设定就进背景，写进风格提示词就进本次任务。</p>
 
           <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>四、选项、产品知识与补充输入</h3>
           <ul style={{ paddingLeft: 20 }}>
             <li><b>🎚️ 选项配置</b>：维护生成页的下拉维度。纯值维度（如产品系列）只注入值；带约束维度（如文案类型）的每个选项可带一段约束文本，选中后用 <code>{'{文案类型约束}'}</code> 注入。维度名即变量名（如 <code>{'{产品系列}'}</code>）。</li>
             <li><b>📚 产品知识</b>：按产品系列一条文本。生成页选某系列时，对应内容通过 <code>{'{产品知识}'}</code> 注入。系列名需与「选项配置」里产品系列的选项值匹配。</li>
-            <li><b>⌨️ 补充输入</b>：生成页「品牌」「语气」是固定输入（提示词里用 <code>{'{brand}'}</code>/<code>{'{tone}'}</code> 引用）；下方还可增删自定义 name/value 字段，会保留在浏览器本地。</li>
+            <li><b>⌨️ 补充输入</b>：生成页「品牌」「语气」是固定输入（提示词里用 <code>{'{品牌}'}</code>/<code>{'{语气}'}</code> 引用）；下方还可增删自定义 name/value 字段，会保留在浏览器本地。</li>
           </ul>
           <p>提示词里 <code>{'{var}'}</code> 未提供值时，后端会保留占位不崩——可在补充输入补上，或直接删掉占位。</p>
 
@@ -686,13 +686,19 @@ function App() {
   const [page, setPage] = useState<Page>('generate')
   // 提升到顶层的共享状态
   const [genProvider, setGenProvider] = useState('kimi')
-  // 补充输入：name/value，localStorage 持久化，默认 brand/tone
+  // 补充输入：name/value，localStorage 持久化，默认 品牌/语气
   const [extraInputs, setExtraInputs] = useState<Record<string, string>>(() => {
     try {
       const saved = localStorage.getItem('copygen_extra_inputs')
-      if (saved) return JSON.parse(saved)
+      if (saved) {
+        const obj = JSON.parse(saved)
+        // 旧版用 brand/tone，迁移到中文 key
+        if (obj.brand !== undefined) { obj['品牌'] = obj.brand; delete obj.brand }
+        if (obj.tone !== undefined) { obj['语气'] = obj.tone; delete obj.tone }
+        return obj
+      }
     } catch { /* ignore */ }
-    return { brand: '爱他美', tone: '专业' }
+    return { '品牌': '爱他美', '语气': '专业' }
   })
   useEffect(() => { try { localStorage.setItem('copygen_extra_inputs', JSON.stringify(extraInputs)) } catch { /* ignore */ } }, [extraInputs])
   const [provEditing, setProvEditing] = useState<Record<string, Provider>>({})
@@ -713,11 +719,11 @@ function App() {
 
   const navItems: { key: Page; label: string; icon: string }[] = [
     { key: 'generate', label: '生成', icon: '✍️' },
-    { key: 'config', label: '模型配置', icon: '🔑' },
     { key: 'slots', label: '文案风格', icon: '🎨' },
     { key: 'options', label: '选项配置', icon: '🎚️' },
     { key: 'knowledge', label: '产品知识', icon: '📚' },
     { key: 'history', label: '历史', icon: '🗂️' },
+    { key: 'config', label: '模型配置', icon: '🔑' },
   ]
 
   return (

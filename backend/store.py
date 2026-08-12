@@ -55,15 +55,21 @@ CREATE TABLE IF NOT EXISTS product_knowledge (
 """
 
 _DEFAULT_SLOTS = [
-    (0, "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{brand}\n语气：{tone}", 1.0),
-    (1, "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{brand}\n语气：{tone}", 1.0),
-    (2, "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{brand}\n语气：{tone}", 1.0),
+    (0, "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}\n语气：{语气}", 1.0),
+    (1, "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}\n语气：{语气}", 1.0),
+    (2, "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}\n语气：{语气}", 1.0),
 ]
 # 旧版默认槽位（用于一次性迁移到维度变量版）
 _OLD_DEFAULT_SLOTS = [
     "请根据以下信息写一段营销文案，风格专业严谨。\n主题：{topic}\n品牌：{brand}\n语气：{tone}",
     "请根据以下信息写一段营销文案，风格活泼口语化。\n主题：{topic}\n品牌：{brand}\n语气：{tone}",
     "请根据以下信息写一段营销文案，风格故事化、有画面感。\n主题：{topic}\n品牌：{brand}\n语气：{tone}",
+]
+# 英文占位版默认槽位（用于一次性迁移到中文占位版）
+_OLD_EN_SLOTS = [
+    "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{brand}\n语气：{tone}",
+    "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{brand}\n语气：{tone}",
+    "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{brand}\n语气：{tone}",
 ]
 _DEFAULT_REVIEW = (
     "请审核以下文案，从三个维度评估并给出综合打分（0-100 整数）：\n"
@@ -80,7 +86,9 @@ _DEFAULT_REVIEW = (
 )
 # 旧版综合审查 prompt（用于一次性迁移到三维度独立审核版）
 _OLD_DEFAULT_REVIEW = "以下是多份候选文案，请逐份点评并给出综合改进意见：\n{candidates}"
-_DEFAULT_SYSTEM = "你是品牌官方私域内容专家，身份为品牌官方营养师/喂养顾问。请用专业、克制、有温度的语气撰写文案。\n品牌：{brand}\n语气：{tone}\n\n产品知识：\n{产品知识}"
+_DEFAULT_SYSTEM = "你是品牌官方私域内容专家，身份为品牌官方营养师/喂养顾问。请用专业、克制、有温度的语气撰写文案。\n品牌：{品牌}\n语气：{语气}\n\n产品知识：\n{产品知识}"
+# 英文占位版默认 system prompt（用于一次性迁移到中文占位版）
+_OLD_EN_SYSTEM = "你是品牌官方私域内容专家，身份为品牌官方营养师/喂养顾问。请用专业、克制、有温度的语气撰写文案。\n品牌：{brand}\n语气：{tone}\n\n产品知识：\n{产品知识}"
 _DEFAULT_KB = """【产品知识库】
 
 爱他美卓傲（高端牛奶粉）：
@@ -154,6 +162,8 @@ def init_store(db_path=None):
     _ensure_finalized_review_columns()
     # 旧版默认槽位（仍含 {topic}）迁移到维度变量版，仅替换未改动的默认值
     _migrate_default_slots()
+    # {brand}/{tone} 占位迁移为中文 {品牌}/{语气}
+    _migrate_brand_tone_placeholders()
     # Change C：旧版综合审查 prompt 迁移到三维度独立审核版
     _migrate_review_prompt()
     # Change B：把旧「产品知识」全局变量迁移到 product_knowledge 表，并删除变量条目
@@ -253,6 +263,28 @@ def _migrate_default_slots():
             if body in _OLD_DEFAULT_SLOTS:
                 idx = _OLD_DEFAULT_SLOTS.index(body)
                 c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (_DEFAULT_SLOTS[idx][1], slot))
+            elif body in _OLD_EN_SLOTS:
+                # 英文占位版默认槽位 → 中文占位版
+                idx = _OLD_EN_SLOTS.index(body)
+                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (_DEFAULT_SLOTS[idx][1], slot))
+
+
+def _migrate_brand_tone_placeholders():
+    """一次性迁移：把提示词里的 {brand}/{tone} 占位替换为中文 {品牌}/{语气}。
+
+    覆盖 system_prompt 与所有 generate_slots，仅做占位替换，保留用户其他改动。
+    """
+    with conn() as c:
+        row = c.execute("SELECT body FROM system_prompt WHERE id=1").fetchone()
+        if row and "{brand}" in row["body"]:
+            new = row["body"].replace("{brand}", "{品牌}").replace("{tone}", "{语气}")
+            c.execute("UPDATE system_prompt SET body=? WHERE id=1", (new,))
+        elif row and row["body"] == _OLD_EN_SYSTEM:
+            c.execute("UPDATE system_prompt SET body=? WHERE id=1", (_DEFAULT_SYSTEM,))
+        for r in c.execute("SELECT slot, body FROM generate_slots").fetchall():
+            if "{brand}" in r["body"]:
+                new = r["body"].replace("{brand}", "{品牌}").replace("{tone}", "{语气}")
+                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (new, r["slot"]))
 
 
 def _migrate_review_prompt():
