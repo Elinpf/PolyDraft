@@ -79,10 +79,25 @@ def init_providers(db_path=None):
     _rename_legacy_providers()
 
 
+def mask_key(key: str) -> str:
+    """掩码化 api_key 供展示：保留前3位与后4位，中间用 **** 替代。空或占位保持原样。"""
+    if not key or key == "EMPTY":
+        return key
+    if len(key) <= 8:
+        return "****"
+    return f"{key[:3]}****{key[-4:]}"
+
+
 def list_providers() -> list[ProviderConfig]:
+    """返回 provider 列表，api_key 做掩码（不向前端暴露明文）。"""
     with conn() as c:
         rows = c.execute("SELECT * FROM providers ORDER BY name").fetchall()
-        return [ProviderConfig(**dict(r)) for r in rows]
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["api_key"] = mask_key(d.get("api_key", ""))
+            out.append(ProviderConfig(**d))
+        return out
 
 
 def get_provider(name: str) -> ProviderConfig | None:
@@ -92,13 +107,23 @@ def get_provider(name: str) -> ProviderConfig | None:
 
 
 def save_provider(cfg: ProviderConfig):
+    """保存 provider。若 api_key 为掩码值（含 ****）则保留原 key 不覆盖。"""
+    api_key = cfg.api_key
+    masked = "****" in api_key if api_key else False
     with conn() as c:
-        c.execute(
-            "INSERT INTO providers(name, base_url, api_key, model) VALUES (?,?,?,?) "
-            "ON CONFLICT(name) DO UPDATE SET base_url=excluded.base_url, "
-            "api_key=excluded.api_key, model=excluded.model",
-            (cfg.name, cfg.base_url, cfg.api_key, cfg.model),
-        )
+        if masked:
+            # 仅更新 base_url / model，不动 api_key
+            c.execute(
+                "UPDATE providers SET base_url=?, model=? WHERE name=?",
+                (cfg.base_url, cfg.model, cfg.name),
+            )
+        else:
+            c.execute(
+                "INSERT INTO providers(name, base_url, api_key, model) VALUES (?,?,?,?) "
+                "ON CONFLICT(name) DO UPDATE SET base_url=excluded.base_url, "
+                "api_key=excluded.api_key, model=excluded.model",
+                (cfg.name, cfg.base_url, api_key, cfg.model),
+            )
 
 
 class LLMProvider:

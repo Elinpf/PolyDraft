@@ -264,7 +264,6 @@ function GeneratePage({ s }: { s: SharedState }) {
 
 function ConfigPage({ s }: { s: SharedState }) {
   const [testing, setTesting] = useState<Record<string, boolean | null>>({})
-  const [showKey, setShowKey] = useState<Record<string, boolean>>({})
 
   useEffect(() => { s.reloadProviders() }, [])
 
@@ -300,10 +299,7 @@ function ConfigPage({ s }: { s: SharedState }) {
               <div className="form-row">
                 <div className="form-group"><label>base_url</label><input value={p?.base_url ?? ''} onChange={(e) => s.setProvEditing({ ...s.provEditing, [name]: { ...p, base_url: e.target.value } })} /></div>
                 <div className="form-group"><label>api_key</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <input style={{ flex: 1 }} type={showKey[name] ? 'text' : 'password'} value={p?.api_key ?? ''} placeholder="填写 API Key" onChange={(e) => s.setProvEditing({ ...s.provEditing, [name]: { ...p, api_key: e.target.value } })} />
-                    <button type="button" className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 14 }} title={showKey[name] ? '隐藏' : '显示明文'} onClick={() => setShowKey({ ...showKey, [name]: !showKey[name] })}>{showKey[name] ? '🙈' : '👁️'}</button>
-                  </div>
+                  <input type="password" value={p?.api_key ?? ''} placeholder="已保存的 key 不显示明文，如需更换请输入新 key" onChange={(e) => s.setProvEditing({ ...s.provEditing, [name]: { ...p, api_key: e.target.value } })} />
                 </div>
               </div>
               <div className="form-row"><div className="form-group"><label>model</label><input value={p?.model ?? ''} onChange={(e) => s.setProvEditing({ ...s.provEditing, [name]: { ...p, model: e.target.value } })} /></div></div>
