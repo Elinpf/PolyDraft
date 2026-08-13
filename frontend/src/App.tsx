@@ -572,10 +572,36 @@ function OptionsPage({ s }: { s: SharedState }) {
       </div>
 
       {dims.map((d) => (
-        <div className="panel" key={d.id}>
-          <div className="panel-header"><div className="icon">{d.kind === 'prompt' ? '✍️' : '🏷️'}</div>
-            <h2>{d.name}</h2><span className="tag">{d.kind === 'prompt' ? '带提示词' : '纯值'} · {d.choices.length} 选项</span>
-          </div>
+        <DimPanel key={d.id} d={d} patchDim={patchDim} patchChoice={patchChoice}
+          delDim={delDim} delChoice={delChoice} onAddChoice={async (label, value, frag) => {
+            if (!label.trim()) return alert('选项名不能为空')
+            const r = await fetch(`/dimensions/${d.id}/choices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, value, prompt_fragment: frag }) })
+            if (!r.ok) { const dd = await r.json(); return alert(dd.detail || '失败') }
+            load(); s.bumpDimsTick()
+          }} />
+      ))}
+    </div>
+  )
+}
+
+function DimPanel({ d, patchDim, patchChoice, delDim, delChoice, onAddChoice }: {
+  d: Dimension
+  patchDim: (id: number, p: Partial<Dimension>) => void
+  patchChoice: (dimId: number, choiceId: number, p: Partial<Choice>) => void
+  delDim: (d: Dimension) => void
+  delChoice: (d: Dimension, c: Choice) => void
+  onAddChoice: (label: string, value: string, frag: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="panel">
+      <div className="panel-header" style={{ cursor: 'pointer' }} onClick={() => setOpen((o) => !o)}>
+        <div className="icon">{d.kind === 'prompt' ? '✍️' : '🏷️'}</div>
+        <h2>{d.name}</h2><span className="tag" style={{ marginLeft: 0 }}>{d.kind === 'prompt' ? '带提示词' : '纯值'} · {d.choices.length} 选项</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>{open ? '▼ 收拢' : '▶ 展开'}</span>
+      </div>
+      {open && (
+        <>
           <div className="form-row" style={{ alignItems: 'flex-end' }}>
             <div className="form-group"><label>维度名 <code className="var-tag">{'{'+d.name+'}'}</code>{d.kind === 'prompt' && <code className="var-tag" style={{ marginLeft: 4 }}>{'{'+d.name+'提示词}'}</code>}</label><input value={d.name} onChange={(e) => patchDim(d.id, { name: e.target.value })} /></div>
             <div className="form-group"><label>类型</label>
@@ -603,14 +629,9 @@ function OptionsPage({ s }: { s: SharedState }) {
             </div>
           ))}
 
-          <AddChoiceRow onAdd={async (label, value, frag) => {
-            if (!label.trim()) return alert('选项名不能为空')
-            const r = await fetch(`/dimensions/${d.id}/choices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, value, prompt_fragment: frag }) })
-            if (!r.ok) { const dd = await r.json(); return alert(dd.detail || '失败') }
-            load(); s.bumpDimsTick()
-          }} promptKind={d.kind} />
-        </div>
-      ))}
+          <AddChoiceRow onAdd={onAddChoice} promptKind={d.kind} />
+        </>
+      )}
     </div>
   )
 }
