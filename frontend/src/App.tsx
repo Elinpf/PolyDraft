@@ -7,7 +7,7 @@ type Choice = { id: number; dimension_id: number; label: string; value: string; 
 type Dimension = { id: number; name: string; kind: 'value' | 'prompt'; choices: Choice[] }
 type KnowledgeItem = { series: string; body: string }
 type CandReview = { score: number; positive: string; reverse: string; accuracy: string; raw: string }
-type Candidate = { text: string; review: CandReview; edited: string; finalized: boolean; reReviewing: boolean; finalizing: boolean }
+type Candidate = { text: string; style?: string; review: CandReview; edited: string; finalized: boolean; reReviewing: boolean; finalizing: boolean }
 type Page = 'generate' | 'config' | 'slots' | 'options' | 'knowledge' | 'history' | 'docs'
 
 // ====== 共享状态（提升到 App，切换页面不丢失）======
@@ -22,6 +22,9 @@ type SharedState = {
   provEditing: Record<string, Provider>
   setProvEditing: (e: Record<string, Provider>) => void
   reloadProviders: () => void
+  // 定稿刷新信号：定稿后 +1，历史页监听并重新拉取
+  finalizeTick: number
+  bumpFinalizeTick: () => void
 }
 
 // ============ 生成页 ============
@@ -77,7 +80,7 @@ function GeneratePage({ s }: { s: SharedState }) {
             setFailureDetail(e.failures || [])
           } else {
             const cs: Candidate[] = (e.candidates || []).map((c: any) => ({
-              text: c.text, review: c.review, edited: c.text, finalized: false, reReviewing: false, finalizing: false,
+              text: c.text, style: c.style, review: c.review, edited: c.text, finalized: false, reReviewing: false, finalizing: false,
             }))
             setCandidates(cs); setStage('done'); setStatus('')
           }
@@ -107,6 +110,7 @@ function GeneratePage({ s }: { s: SharedState }) {
       const data = await r.json()
       if (!r.ok) throw new Error(data.detail || '保存失败')
       patchCand(i, { finalized: true })
+      s.bumpFinalizeTick()   // 通知历史页刷新
     } catch (e) { alert(String(e)) } finally { patchCand(i, { finalizing: false }) }
   }
 
@@ -225,7 +229,7 @@ function GeneratePage({ s }: { s: SharedState }) {
             return (
             <div className="list-item" key={i}>
               <div className="item-head">
-                <span className="item-name">📝 候选文案 {i + 1}</span>
+                <span className="item-name">📝 候选文案 {i + 1}{c.style ? `（${c.style}）` : ''}</span>
                 <span className="item-meta" style={{ color: revColor, fontWeight: 700, marginRight: 10 }}>审核状态：{revStatus}</span>
                 {reviewed && <span className="item-meta" style={{ color: scoreColor(c.review.score), fontWeight: 700 }}>打分 {c.review.score}</span>}
               </div>
@@ -242,7 +246,7 @@ function GeneratePage({ s }: { s: SharedState }) {
               <div className="btn-row" style={{ justifyContent: 'flex-start' }}>
                 <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => navigator.clipboard.writeText(c.edited)}>📋 复制</button>
                 <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => reReviewOne(i)} disabled={c.reReviewing}>{c.reReviewing ? '审核中…' : '🔄 重新审核'}</button>
-                <button className="btn btn-success" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => doFinalize(i)} disabled={c.finalizing}>{c.finalizing ? '保存中…' : '✅ 定稿'}</button>
+                <button className="btn btn-success" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => doFinalize(i)} disabled={c.finalizing || c.finalized}>{c.finalized ? '✓ 已定稿' : c.finalizing ? '保存中…' : '✅ 定稿'}</button>
               </div>
             </div>
             )
@@ -686,12 +690,14 @@ function KnowledgePage() {
 
 type FinalizedItem = { id: number; ts: string; provider: string; input_vars: string; selected_idx: number; text: string; review: string; score: number | null; positive: string; reverse: string; accuracy: string }
 
-function HistoryPage() {
+function HistoryPage({ s }: { s: SharedState }) {
   const [items, setItems] = useState<FinalizedItem[]>([])
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
 
   async function load() { setItems(await (await fetch('/finalized')).json()) }
   useEffect(() => { load() }, [])
+  // 定稿后刷新（页面常驻挂载，切回可见最新）
+  useEffect(() => { if (s.finalizeTick > 0) load() }, [s.finalizeTick])
 
   async function del(id: number) {
     if (!confirm('确定删除这条定稿？')) return
@@ -766,6 +772,7 @@ function App() {
   })
   useEffect(() => { try { localStorage.setItem('copygen_extra_inputs', JSON.stringify(extraInputs)) } catch { /* ignore */ } }, [extraInputs])
   const [provEditing, setProvEditing] = useState<Record<string, Provider>>({})
+  const [finalizeTick, setFinalizeTick] = useState(0)
 
   async function reloadProviders() {
     const data = await (await fetch('/providers')).json()
@@ -779,6 +786,7 @@ function App() {
     genProvider, setGenProvider,
     extraInputs, setExtraInputs,
     provEditing, setProvEditing, reloadProviders,
+    finalizeTick, bumpFinalizeTick: () => setFinalizeTick((n) => n + 1),
   }
 
   const navItems: { key: Page; label: string; icon: string }[] = [
@@ -808,7 +816,7 @@ function App() {
       <div style={{ display: page === 'slots' ? 'block' : 'none' }}><SlotsPage /></div>
       <div style={{ display: page === 'options' ? 'block' : 'none' }}><OptionsPage /></div>
       <div style={{ display: page === 'knowledge' ? 'block' : 'none' }}><KnowledgePage /></div>
-      <div style={{ display: page === 'history' ? 'block' : 'none' }}><HistoryPage /></div>
+      <div style={{ display: page === 'history' ? 'block' : 'none' }}><HistoryPage s={shared} /></div>
       <div style={{ display: page === 'docs' ? 'block' : 'none' }}><DocsPage /></div>
     </div>
   )

@@ -115,18 +115,18 @@ async def run(gen_input: GenerateInput, provider: LLMProvider):
     async def _run_one(idx: int, sl):
         try:
             text = await provider.complete(sl.body, vars_ctx, 1.0, system=system)
-            return idx, sl.slot, text, None
+            return idx, sl.slot, sl.name or f"风格 {sl.slot}", text, None
         except Exception as e:
-            return idx, sl.slot, None, str(e)
+            return idx, sl.slot, sl.name or f"风格 {sl.slot}", None, str(e)
 
     task_list = [asyncio.create_task(_run_one(i, sl)) for i, sl in enumerate(slots)]
-    drafts: list[tuple[int, str]] = []   # (idx, text)
+    drafts: list[tuple[int, str, str]] = []   # (idx, style_name, text)
     failures: list[dict] = []
     done = 0
     for t in asyncio.as_completed(task_list):
-        idx, slot_no, text, err = await t
+        idx, slot_no, style_name, text, err = await t
         if text is not None:
-            drafts.append((idx, text))
+            drafts.append((idx, style_name, text))
         else:
             failures.append({"slot": slot_no, "error": err})
         done += 1
@@ -141,7 +141,8 @@ async def run(gen_input: GenerateInput, provider: LLMProvider):
 
     # 审核阶段：每份候选独立审核，并行
     drafts.sort(key=lambda x: x[0])
-    candidates_text = [t for _, t in drafts]
+    candidates_text = [t for _, _, t in drafts]
+    candidates_style = [n for _, n, _ in drafts]
 
     log_operation("pipeline", "generate", 0, 0, "start reviewing")
     yield {"type": "stage", "stage": "reviewing", "total": len(candidates_text)}
@@ -167,7 +168,8 @@ async def run(gen_input: GenerateInput, provider: LLMProvider):
         yield {"type": "review_progress", "done": r_done, "total": r_total}
 
     candidates = [
-        {"text": candidates_text[i], "review": (reviews[i] or ReviewResult()).to_dict()}
+        {"text": candidates_text[i], "style": candidates_style[i],
+         "review": (reviews[i] or ReviewResult()).to_dict()}
         for i in range(len(candidates_text))
     ]
 
