@@ -174,8 +174,8 @@ function GeneratePage({ s }: { s: SharedState }) {
 
         <div style={{ marginTop: 4 }}>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>补充输入（在提示词里用对应 <code>{'{var}'}</code> 引用）：</div>
-          {Object.entries(s.extraInputs).filter(([k]) => k !== '品牌' && k !== '语气').map(([name, value]) => (
-            <div className="form-row" key={name} style={{ alignItems: 'flex-end' }}>
+          {Object.entries(s.extraInputs).filter(([k]) => k !== '品牌' && k !== '语气').map(([name, value], idx) => (
+            <div className="form-row" key={idx} style={{ alignItems: 'flex-end' }}>
               <div className="form-group"><label>变量名</label>
                 <input value={name} onChange={(e) => {
                   const rest = { ...s.extraInputs }; delete rest[name]; rest[e.target.value] = value; s.setExtraInputs(rest)
@@ -393,49 +393,63 @@ function DocsPage() {
         <div className="panel-header"><div className="icon">📖</div><h2>使用文档</h2><span className="tag">文档</span></div>
         <div style={{ fontSize: 14, lineHeight: 1.9, color: 'var(--text)' }}>
 
-          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>一、整体流程</h3>
-          <p>本引擎是一个文案生成流水线：<b>选条件 → 并行生成多份风格候选 → 逐份独立审核 → 逐份定稿</b>。一次生成会按你的多个「文案风格」并行产出多份候选文案，每份都独立审核（综合打分 + 正向亲和 / 反向亲和 / 产品知识准确性三维度），最终由你逐份定稿保留。</p>
+          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>一、这是什么</h3>
+          <p>一个文案生成引擎：选好条件 → 并行生成多份不同风格的候选文案 → 每份独立审核（打分 + 三维度意见） → 逐份定稿保留。</p>
+          <p>适合品牌私域内容生产：朋友圈、1v1、社群、小红书等多种文案类型，官方版 / 亲切版 / 闺蜜版等多种风格一次产出。</p>
 
-          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>二、快速上手（5 步）</h3>
+          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>二、快速上手</h3>
+          <p>按导航顺序从左到右：</p>
           <ol style={{ paddingLeft: 20 }}>
-            <li><b>🔑 配置模型</b>：进「模型配置」页，填写接口地址（base_url）、密钥（api_key）、模型名（model），点「保存」后「测试连通」确认可用。</li>
-            <li><b>🧠 写写作设定</b>：进「文案风格」页最顶部，编辑写作设定（身份、品牌调性）。可用 <code>{'{var}'}</code> 引用变量。</li>
-            <li><b>🎨 配文案风格</b>：在「文案风格」页编辑每种风格的提示词。每个风格 = 一种写法，并行各跑一份。</li>
-            <li><b>🎚️ 配选项 + 📚 产品知识</b>：在「选项配置」维护产品系列 / 文案类型等下拉选项（文案类型可带约束片段）；在「产品知识」按系列维护知识，生成时按所选系列自动注入。</li>
-            <li><b>✍️ 生成与定稿</b>：进「生成」页选好各下拉条件 → 点「生成」→ 等待进度（生成中 N/M、审核中 N/M）→ 每份候选可编辑、单份重审、逐份定稿保存到历史。</li>
+            <li><b>✍️ 生成</b>：日常用这一页就够。选产品系列 / 文案类型等下拉 → 填品牌、语气 → 点「生成」。等进度走完，逐份看审核结果、编辑、定稿。</li>
+            <li><b>🎨 文案风格</b>：调整 AI 的写法。顶部「写作设定」放稳定背景（身份、调性）；下方每个风格一条提示词，并行各出一份候选；底部「审核意见设定」控制审核怎么打分。</li>
+            <li><b>🎚️ 选项配置</b>：维护生成页的下拉选项（产品系列、文案类型等）。改完点「保存全部」。</li>
+            <li><b>📚 产品知识</b>：按产品系列维护知识文本，生成时自动注入对应系列的内容。</li>
+            <li><b>🗂️ 历史</b>：查看所有定稿，含审核结果。</li>
+            <li><b>🔑 模型配置</b>：填模型的接口地址、密钥、模型名，测试连通。首次使用或换模型时来这。</li>
           </ol>
 
-          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>三、提示词怎么拼</h3>
+          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>三、生成页怎么用</h3>
+          <ul style={{ paddingLeft: 20 }}>
+            <li><b>模型</b>：选 kimi 或自定义模型。</li>
+            <li><b>品牌 / 语气</b>：固定输入，提示词里用 <code>{'{品牌}'}</code> / <code>{'{语气}'}</code> 引用。值会记住，下次还在。</li>
+            <li><b>下拉选项</b>：产品系列、文案类型等。每个选项标题后有 <code>{'{var}'}</code> 标签，告诉你这个选项对应提示词里哪个变量。带约束的维度（如文案类型）选后会额外注入约束片段（如 <code>{'{文案类型约束}'}</code> = 朋友圈不超过7行…）。</li>
+            <li><b>补充输入</b>：除品牌/语气外，需要别的变量就点「＋ 添加」，填变量名和值，提示词里用 <code>{'{变量名}'}</code> 引用。同样会记住。</li>
+            <li><b>生成后</b>：每份候选文案独立显示，带审核状态（待审/已审/待重审/已定稿）、打分、三维度意见。可直接编辑文本，单份「重新审核」「定稿」。</li>
+          </ul>
+
+          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>四、提示词怎么拼</h3>
           <p>每次生成由两部分组成：</p>
           <ul style={{ paddingLeft: 20 }}>
-            <li><b>写作设定</b>（稳定背景）：放身份、调性。每次生成都带。</li>
-            <li><b>风格提示词</b>（本次任务）：放本次主题、场景等。</li>
+            <li><b>写作设定</b>（稳定背景）：身份、调性、产品知识。每次生成都带。</li>
+            <li><b>风格提示词</b>（本次任务）：本次主题、场景、约束。</li>
           </ul>
-          <p>变量用 <code>{'{var}'}</code> 引用，写在哪个提示词里就在哪部分渲染。例如 <code>{'{品牌}'}</code> 写进写作设定就进背景，写进风格提示词就进本次任务。</p>
+          <p>变量用 <code>{'{var}'}</code> 引用，写在哪个提示词里就在哪部分渲染。例如 <code>{'{品牌}'}</code> 写进写作设定 → 进背景；写进风格提示词 → 进本次任务。</p>
+          <p>所有可用变量：生成页每个输入框标题后的 <code>{'{var}'}</code> 标签、下拉维度名（如 <code>{'{产品系列}'}</code>）、<code>{'{产品知识}'}</code>（选系列后自动注入）。</p>
 
-          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>四、选项、产品知识与补充输入</h3>
+          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>五、选项配置与产品知识</h3>
           <ul style={{ paddingLeft: 20 }}>
-            <li><b>🎚️ 选项配置</b>：维护生成页的下拉维度。纯值维度（如产品系列）只注入值；带约束维度（如文案类型）的每个选项可带一段约束文本，选中后用 <code>{'{文案类型约束}'}</code> 注入。维度名即变量名（如 <code>{'{产品系列}'}</code>）。</li>
-            <li><b>📚 产品知识</b>：按产品系列一条文本。生成页选某系列时，对应内容通过 <code>{'{产品知识}'}</code> 注入。系列名需与「选项配置」里产品系列的选项值匹配。</li>
-            <li><b>⌨️ 补充输入</b>：生成页「品牌」「语气」是固定输入（提示词里用 <code>{'{品牌}'}</code>/<code>{'{语气}'}</code> 引用）；下方还可增删自定义 name/value 字段，会保留在浏览器本地。</li>
-          </ul>
-          <p>提示词里 <code>{'{var}'}</code> 未提供值时，后端会保留占位不崩——可在补充输入补上，或直接删掉占位。</p>
-
-          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>五、生成与定稿</h3>
-          <ul style={{ paddingLeft: 20 }}>
-            <li><b>进度</b>：实时显示「生成中 N/M」「审核中 N/M」。</li>
-            <li><b>候选文案</b>：多份风格不同的候选，各自带审核结果（打分 + 三维度意见），可直接在文本框编辑。</li>
-            <li><b>定稿</b>：每份候选独立点「✅ 定稿」，全部保留，在「历史」页查看。</li>
-            <li><b>重新审核</b>：每份候选单独点「🔄 重新审核」，只重审这一份（编辑后重审会基于编辑后的文本）。</li>
-            <li><b>失败容忍</b>：部分风格失败仍返回其余候选；全部失败会列出每个风格的具体错误。</li>
+            <li><b>🎚️ 维度</b>：纯值维度（如产品系列）只注入值；带约束维度（如文案类型）的每个选项可带约束片段。维度名 = 变量名。<b>改完必须点「保存全部」</b>。</li>
+            <li><b>📚 产品知识</b>：每个产品系列一条知识文本。生成页选某系列时，对应内容通过 <code>{'{产品知识}'}</code> 注入。这里的「系列」= 选项配置里产品系列维度的<b>选项值</b>（如 A），卡片标题会标注它对应的人类可读名（如 至臻）。</li>
           </ul>
 
-          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>六、常见问题</h3>
+          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>六、审核三维度</h3>
+          <p>每份候选独立审核，LLM 给出供你判断的结果（不替你决定是否通过）：</p>
           <ul style={{ paddingLeft: 20 }}>
-            <li><b>生成失败提示额度用尽</b>：模型 API 额度耗尽，需到模型平台续费或换可用密钥。</li>
-            <li><b>测试连通失败</b>：检查密钥（api_key）是否有效、接口地址（base_url）是否可达、模型名（model）是否正确。</li>
-            <li><b>候选里出现 <code>{'{xxx}'}</code></b>：该变量未提供值，后端保留占位。在生成页补充输入里加上对应 name，或在提示词里删掉。</li>
-            <li><b>定稿后刷新页面丢失</b>：定稿已存数据库，去「历史」页查看；生成页的候选是会话态，刷新会清。</li>
+            <li><b>综合打分</b>：0-100，颜色区分（绿≥80 / 金≥60 / 红&lt;60）。</li>
+            <li><b>正向亲和</b>：是否温暖、贴近用户。</li>
+            <li><b>反向亲和</b>：是否避免生硬、说教、推销感。</li>
+            <li><b>产品知识准确性</b>：是否符合产品知识库、有无事实错误。</li>
+          </ul>
+          <p>编辑候选后，审核状态变「待重审」，点「🔄 重新审核」基于编辑后的文本重审这一份。</p>
+
+          <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>七、常见问题</h3>
+          <ul style={{ paddingLeft: 20 }}>
+            <li><b>生成失败提示额度用尽</b>：模型 API 额度耗尽，到模型平台续费或换密钥。</li>
+            <li><b>测试连通失败 / 请求超时</b>：检查密钥、接口地址、模型名是否正确；本机有代理时引擎已自动直连，一般不需管。</li>
+            <li><b>候选里出现 <code>{'{xxx}'}</code></b>：该变量没提供值，后端保留占位。在生成页补充输入加对应变量名，或选好对应下拉，或删掉提示词里的占位。</li>
+            <li><b>产品知识没注入</b>：检查产品知识页该系列卡片标题有没有「⚠️ 无对应选项」——有的话说明系列值与选项配置里的产品系列值对不上。</li>
+            <li><b>改了文案风格 / 选项配置没生效</b>：这两页改完都要点「保存」按钮才入库。</li>
+            <li><b>定稿后刷新页面候选没了</b>：定稿已存数据库，去「历史」页看；生成页候选是会话态，刷新会清。</li>
           </ul>
 
         </div>
@@ -450,6 +464,7 @@ function OptionsPage() {
   const [dims, setDims] = useState<Dimension[]>([])
   const [newName, setNewName] = useState('')
   const [newKind, setNewKind] = useState<'value' | 'prompt'>('value')
+  const [saving, setSaving] = useState(false)
 
   async function load() {
     setDims(await (await fetch('/dimensions')).json())
@@ -462,28 +477,41 @@ function OptionsPage() {
     if (!r.ok) { const d = await r.json(); return alert(d.detail || '失败') }
     setNewName(''); load()
   }
-  async function updDim(d: Dimension, name: string, kind: 'value' | 'prompt') {
-    const r = await fetch(`/dimensions/${d.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, kind }) })
-    if (!r.ok) { const dd = await r.json(); return alert(dd.detail || '失败') }
-    load()
-  }
   async function delDim(d: Dimension) {
     if (!confirm(`删除维度「${d.name}」及其所有选项？`)) return
     await fetch(`/dimensions/${d.id}`, { method: 'DELETE' }); load()
   }
-  async function addChoice(d: Dimension, label: string, value: string, frag: string) {
-    if (!label.trim()) return alert('选项 label 不能为空')
-    const r = await fetch(`/dimensions/${d.id}/choices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, value, prompt_fragment: frag }) })
-    if (!r.ok) { const dd = await r.json(); return alert(dd.detail || '失败') }
-    load()
-  }
-  async function updChoice(c: Choice, label: string, value: string, frag: string) {
-    await fetch(`/choices/${c.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, value, prompt_fragment: frag }) })
-    load()
-  }
-  async function delChoice(c: Choice) {
+  async function delChoice(d: Dimension, c: Choice) {
     if (!confirm(`删除选项「${c.label}」？`)) return
     await fetch(`/choices/${c.id}`, { method: 'DELETE' }); load()
+  }
+
+  // 本地编辑：更新某个维度的字段（不立即存库）
+  function patchDim(id: number, p: Partial<Dimension>) {
+    setDims((ds) => ds.map((d) => (d.id === id ? { ...d, ...p } : d)))
+  }
+  function patchChoice(dimId: number, choiceId: number, p: Partial<Choice>) {
+    setDims((ds) => ds.map((d) => (d.id === dimId
+      ? { ...d, choices: d.choices.map((c) => (c.id === choiceId ? { ...c, ...p } : c)) }
+      : d)))
+  }
+
+  // 保存：把所有维度的改动批量提交（维度本身 + 其下选项）
+  async function saveAll() {
+    setSaving(true)
+    const errs: string[] = []
+    for (const d of dims) {
+      const r = await fetch(`/dimensions/${d.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: d.name, kind: d.kind }) })
+      if (!r.ok) { const dd = await r.json(); errs.push(`维度「${d.name}」：${dd.detail || '失败'}`) }
+      for (const c of d.choices) {
+        const rc = await fetch(`/choices/${c.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: c.label, value: c.value, prompt_fragment: c.prompt_fragment }) })
+        if (!rc.ok) { const dc = await rc.json(); errs.push(`选项「${c.label}」：${dc.detail || '失败'}`) }
+      }
+    }
+    setSaving(false)
+    if (errs.length) alert('部分保存失败：\n' + errs.join('\n'))
+    else alert('已保存')
+    load()
   }
 
   return (
@@ -503,7 +531,10 @@ function OptionsPage() {
           </div>
           <div className="form-group"><label>维度名</label><input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="如 产品系列 / 文案类型" /></div>
         </div>
-        <div className="btn-row" style={{ justifyContent: 'flex-start' }}><button className="btn btn-success" onClick={addDim}>➕ 新增维度</button></div>
+        <div className="btn-row" style={{ justifyContent: 'flex-start' }}>
+          <button className="btn btn-success" onClick={addDim}>➕ 新增维度</button>
+          {dims.length > 0 && <button className="btn btn-primary" onClick={saveAll} disabled={saving}>{saving ? '保存中…' : '💾 保存全部'}</button>}
+        </div>
       </div>
 
       {dims.map((d) => (
@@ -512,9 +543,9 @@ function OptionsPage() {
             <h2>{d.name}</h2><span className="tag">{d.kind === 'prompt' ? '带约束' : '纯值'} · {d.choices.length} 选项</span>
           </div>
           <div className="form-row" style={{ alignItems: 'flex-end' }}>
-            <div className="form-group"><label>维度名</label><input defaultValue={d.name} onBlur={(e) => { if (e.target.value !== d.name) updDim(d, e.target.value, d.kind) }} /></div>
+            <div className="form-group"><label>维度名 <code className="var-tag">{'{'+d.name+'}'}</code>{d.kind === 'prompt' && <code className="var-tag" style={{ marginLeft: 4 }}>{'{'+d.name+'约束}'}</code>}</label><input value={d.name} onChange={(e) => patchDim(d.id, { name: e.target.value })} /></div>
             <div className="form-group"><label>类型</label>
-              <select defaultValue={d.kind} onChange={(e) => updDim(d, d.name, e.target.value as 'value' | 'prompt')}>
+              <select value={d.kind} onChange={(e) => patchDim(d.id, { kind: e.target.value as 'value' | 'prompt' })}>
                 <option value="value">纯值</option><option value="prompt">带约束</option>
               </select>
             </div>
@@ -525,20 +556,25 @@ function OptionsPage() {
           {d.choices.map((c) => (
             <div className="list-item" key={c.id}>
               <div className="item-head"><span className="item-name">▪️ {c.label}</span>
-                <button className="btn btn-danger" style={{ padding: '4px 12px', fontSize: 11 }} onClick={() => delChoice(c)}>🗑️</button></div>
+                <button className="btn btn-danger" style={{ padding: '4px 12px', fontSize: 11 }} onClick={() => delChoice(d, c)}>🗑️</button></div>
               <div className="form-row">
-                <div className="form-group"><label>选项名（显示/选择）</label><input defaultValue={c.label} onBlur={(e) => updChoice(c, e.target.value, c.value, c.prompt_fragment)} /></div>
-                <div className="form-group"><label>注入值（可空，空则用选项名）</label><input defaultValue={c.value} onBlur={(e) => updChoice(c, c.label, e.target.value, c.prompt_fragment)} /></div>
+                <div className="form-group"><label>选项名（显示/选择）</label><input value={c.label} onChange={(e) => patchChoice(d.id, c.id, { label: e.target.value })} /></div>
+                <div className="form-group"><label>注入值（可空，空则用选项名）</label><input value={c.value} onChange={(e) => patchChoice(d.id, c.id, { value: e.target.value })} /></div>
               </div>
               {d.kind === 'prompt' && (
                 <div className="form-group"><label>约束片段（用 <code>{'{'+d.name+'约束}'}</code> 注入）</label>
-                  <textarea style={{ minHeight: 80 }} defaultValue={c.prompt_fragment} onBlur={(e) => updChoice(c, c.label, c.value, e.target.value)} />
+                  <textarea style={{ minHeight: 80 }} value={c.prompt_fragment} onChange={(e) => patchChoice(d.id, c.id, { prompt_fragment: e.target.value })} />
                 </div>
               )}
             </div>
           ))}
 
-          <AddChoiceRow onAdd={(label, value, frag) => addChoice(d, label, value, frag)} promptKind={d.kind} />
+          <AddChoiceRow onAdd={async (label, value, frag) => {
+            if (!label.trim()) return alert('选项名不能为空')
+            const r = await fetch(`/dimensions/${d.id}/choices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, value, prompt_fragment: frag }) })
+            if (!r.ok) { const dd = await r.json(); return alert(dd.detail || '失败') }
+            load()
+          }} promptKind={d.kind} />
         </div>
       ))}
     </div>
@@ -570,9 +606,19 @@ function AddChoiceRow({ onAdd, promptKind }: { onAdd: (label: string, value: str
 function KnowledgePage() {
   const [items, setItems] = useState<KnowledgeItem[]>([])
   const [newSeries, setNewSeries] = useState('')
+  // 产品系列维度的选项 value→label 映射，用来在系列卡片上显示人类可读的名字
+  const [seriesLabels, setSeriesLabels] = useState<Record<string, string>>({})
 
   async function load() {
-    setItems(await (await fetch('/product-knowledge')).json())
+    const [pk, dims]: [KnowledgeItem[], Dimension[]] = await Promise.all([
+      (await fetch('/product-knowledge')).json(),
+      (await fetch('/dimensions')).json(),
+    ])
+    setItems(pk)
+    const seriesDim = dims.find((d) => d.name === '产品系列')
+    const map: Record<string, string> = {}
+    if (seriesDim) seriesDim.choices.forEach((c) => { map[c.value || c.label] = c.label })
+    setSeriesLabels(map)
   }
   useEffect(() => { load() }, [])
 
@@ -591,18 +637,28 @@ function KnowledgePage() {
     await fetch(`/product-knowledge/${encodeURIComponent(series)}`, { method: 'DELETE' }); load()
   }
 
+  // 系列 label：若该 series 命中产品系列维度选项，显示「label（series）」，否则仅 series
+  const seriesTitle = (series: string) => {
+    const lbl = seriesLabels[series]
+    return lbl && lbl !== series ? `${lbl}（${series}）` : series
+  }
+  // 未配知识的系列选项（value），供新增下拉选择
+  const orphanSeries = Object.keys(seriesLabels).filter((v) => !items.some((it) => it.series === v))
+
   return (
     <div className="container">
       <div className="panel">
         <div className="panel-header"><div className="icon">📚</div><h2>产品知识</h2><span className="tag">{items.length} 系列</span></div>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>
-          按产品系列维护知识文本（卖点、受众、范文等）。生成页选某产品系列时，对应内容通过 <code>{'{产品知识}'}</code> 注入。系列名需与「选项配置」里产品系列的选项值匹配。
+          为每个产品系列维护知识文本（卖点、受众、范文等）。生成页选某个产品系列时，对应内容通过 <code>{'{产品知识}'}</code> 注入。这里的「系列」即「选项配置」里产品系列维度的<b>选项值</b>——下方标题会标注该值对应的人类可读名字。
         </p>
         {items.length === 0 && <div className="empty-state"><p>暂无产品知识。先在「选项配置」配置产品系列选项，再回到这里维护对应知识。</p></div>}
         {items.map((it) => (
           <div className="list-item" key={it.series}>
-            <div className="item-head"><span className="item-name">🏷️ 系列 {it.series}</span>
-              <button className="btn btn-danger" style={{ padding: '4px 12px', fontSize: 11 }} onClick={() => del(it.series)}>🗑️</button></div>
+            <div className="item-head">
+              <span className="item-name">🏷️ {seriesTitle(it.series)} <code className="var-tag">{it.series}</code>{!seriesLabels[it.series] && <span style={{ fontSize: 11, color: '#c62828', marginLeft: 6 }}>⚠️ 无对应选项</span>}</span>
+              <button className="btn btn-danger" style={{ padding: '4px 12px', fontSize: 11 }} onClick={() => del(it.series)}>🗑️</button>
+            </div>
             <div className="form-group"><textarea style={{ minHeight: 160, resize: 'vertical' }} defaultValue={it.body} onBlur={(e) => save(it.series, e.target.value)} /></div>
           </div>
         ))}
@@ -610,8 +666,18 @@ function KnowledgePage() {
 
       <div className="panel">
         <div className="panel-header"><div className="icon">➕</div><h2>新增系列知识</h2></div>
+        {orphanSeries.length > 0 && (
+          <p style={{ fontSize: 12, color: '#8a8276', marginBottom: 8 }}>
+            💡 以下产品系列选项尚未配知识：{orphanSeries.map((v) => seriesTitle(v)).join('、')}。直接点下方添加，或手填系列值。
+          </p>
+        )}
         <div className="form-row">
-          <div className="form-group"><label>产品系列名</label><input value={newSeries} onChange={(e) => setNewSeries(e.target.value)} placeholder="如 A / B / 卓傲（需与产品系列维度选项值匹配）" /></div>
+          <div className="form-group"><label>产品系列值</label>
+            <input value={newSeries} onChange={(e) => setNewSeries(e.target.value)} placeholder="如 A / B（即产品系列维度的选项值）" list="series-opts" />
+            <datalist id="series-opts">
+              {Object.entries(seriesLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </datalist>
+          </div>
         </div>
         <div className="btn-row" style={{ justifyContent: 'flex-start' }}><button className="btn btn-success" onClick={add}>➕ 添加</button></div>
       </div>
