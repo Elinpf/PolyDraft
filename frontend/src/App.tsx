@@ -802,7 +802,14 @@ function App() {
           <span className="badge">多风格 · 并行 · 审核</span>
         </div>
       </div>
-      {page === 'generate' ? <GeneratePage s={shared} /> : page === 'config' ? <ConfigPage s={shared} /> : page === 'slots' ? <SlotsPage /> : page === 'options' ? <OptionsPage /> : page === 'knowledge' ? <KnowledgePage /> : page === 'history' ? <HistoryPage /> : <DocsPage />}
+      {/* 所有页面常驻挂载，仅隐藏未激活的——保留生成页 SSE reader 与状态，切 tab 不丢 */}
+      <div style={{ display: page === 'generate' ? 'block' : 'none' }}><GeneratePage s={shared} /></div>
+      <div style={{ display: page === 'config' ? 'block' : 'none' }}><ConfigPage s={shared} /></div>
+      <div style={{ display: page === 'slots' ? 'block' : 'none' }}><SlotsPage /></div>
+      <div style={{ display: page === 'options' ? 'block' : 'none' }}><OptionsPage /></div>
+      <div style={{ display: page === 'knowledge' ? 'block' : 'none' }}><KnowledgePage /></div>
+      <div style={{ display: page === 'history' ? 'block' : 'none' }}><HistoryPage /></div>
+      <div style={{ display: page === 'docs' ? 'block' : 'none' }}><DocsPage /></div>
     </div>
   )
 }
