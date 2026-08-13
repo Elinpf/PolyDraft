@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS call_logs (
     provider  TEXT,
     success   INTEGER NOT NULL,
     duration_ms INTEGER,
-    error     TEXT
+    error     TEXT,
+    prompt    TEXT,                          -- 渲染后的完整 messages JSON（system+user），用于提示词优化
+    model     TEXT
 );
 CREATE TABLE IF NOT EXISTS gen_records (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +52,18 @@ CREATE TABLE IF NOT EXISTS gen_records (
 """
 
 
+def _ensure_call_log_columns():
+    """迁移：旧 call_logs 表可能没有 prompt/model 列，补上。"""
+    with conn() as c:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(call_logs)").fetchall()]
+        if "prompt" not in cols:
+            c.execute("ALTER TABLE call_logs ADD COLUMN prompt TEXT")
+        if "model" not in cols:
+            c.execute("ALTER TABLE call_logs ADD COLUMN model TEXT")
+
+
 def init_db(db_path: str = DB_PATH):
     """启动时建日志三表。后续 change 的业务表由各自 init 追加。"""
     with conn(db_path) as c:
         c.executescript(LOG_SCHEMA)
+    _ensure_call_log_columns()

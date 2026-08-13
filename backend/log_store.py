@@ -28,11 +28,15 @@ def log_operation(method: str, path: str, status: int, duration_ms: int, detail:
 
 # --- call_logs（模型调用链路）---
 
-def log_call(provider: str, success: bool, duration_ms: int, error: str = ""):
+def log_call(provider: str, success: bool, duration_ms: int, error: str = "",
+             messages: list | None = None, model: str = ""):
+    """记录一次模型调用。messages 为渲染后的完整 messages（system+user），用于提示词优化复盘。"""
     with conn() as c:
         c.execute(
-            "INSERT INTO call_logs(ts, provider, success, duration_ms, error) VALUES (?,?,?,?,?)",
-            (_now(), provider, 1 if success else 0, duration_ms, error),
+            "INSERT INTO call_logs(ts, provider, success, duration_ms, error, prompt, model) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (_now(), provider, 1 if success else 0, duration_ms, error,
+             json.dumps(messages, ensure_ascii=False) if messages else None, model),
         )
     log.info("call provider=%s success=%s %sms%s", provider, success, duration_ms,
              f" err={error}" if error else "")

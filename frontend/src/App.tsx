@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import './App.css'
 
 type Provider = { name: string; base_url: string; api_key: string; model: string }
-type Slot = { slot: number; body: string; temperature: number }
+type Slot = { slot: number; name: string; body: string; temperature: number }
 type Choice = { id: number; dimension_id: number; label: string; value: string; prompt_fragment: string }
 type Dimension = { id: number; name: string; kind: 'value' | 'prompt'; choices: Choice[] }
 type KnowledgeItem = { series: string; body: string }
@@ -153,9 +153,6 @@ function GeneratePage({ s }: { s: SharedState }) {
           <div className="form-group"><label>🏷️ 品牌 <code className="var-tag">{'{品牌}'}</code></label>
             <input value={s.extraInputs['品牌'] ?? ''} placeholder="如 爱他美" onChange={(e) => s.setExtraInputs({ ...s.extraInputs, '品牌': e.target.value })} />
           </div>
-          <div className="form-group"><label>🎨 语气 <code className="var-tag">{'{语气}'}</code></label>
-            <input value={s.extraInputs['语气'] ?? ''} placeholder="如 专业 / 亲切" onChange={(e) => s.setExtraInputs({ ...s.extraInputs, '语气': e.target.value })} />
-          </div>
         </div>
         {dimensions.length === 0 && (
           <p style={{ fontSize: 13, color: 'var(--muted)' }}>尚未配置选项维度。请到「选项维度」页配置产品系列 / 文案类型等，再回到这里选择生成。</p>
@@ -174,7 +171,7 @@ function GeneratePage({ s }: { s: SharedState }) {
 
         <div style={{ marginTop: 4 }}>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>补充输入（在提示词里用对应 <code>{'{var}'}</code> 引用）：</div>
-          {Object.entries(s.extraInputs).filter(([k]) => k !== '品牌' && k !== '语气').map(([name, value], idx) => (
+          {Object.entries(s.extraInputs).filter(([k]) => k !== '品牌').map(([name, value], idx) => (
             <div className="form-row" key={idx} style={{ alignItems: 'flex-end' }}>
               <div className="form-group"><label>变量名</label>
                 <input value={name} onChange={(e) => {
@@ -360,8 +357,8 @@ function SlotsPage() {
         {slots.map((sl, i) => {
           return (
             <div className="list-item" key={i}>
-              <div className="item-head"><span className="item-name">🎨 风格 {sl.slot}</span></div>
-              <div className="form-row"><div className="form-group"><label>风格号</label><input type="number" value={sl.slot} onChange={(e) => { const ns = [...slots]; ns[i] = { ...sl, slot: Number(e.target.value) }; setSlots(ns) }} /></div></div>
+              <div className="item-head"><span className="item-name">🎨 {sl.name || `风格 ${sl.slot}`}</span></div>
+              <div className="form-row"><div className="form-group" style={{ flex: 1 }}><label>风格名</label><input value={sl.name ?? ''} placeholder="如 官方版 / 亲切版 / 闺蜜版" onChange={(e) => { const ns = [...slots]; ns[i] = { ...sl, name: e.target.value }; setSlots(ns) }} /></div></div>
               <div className="form-group"><label>提示词</label><textarea style={{ minHeight: 100 }} value={sl.body} onChange={(e) => { const ns = [...slots]; ns[i] = { ...sl, body: e.target.value }; setSlots(ns) }} /></div>
               <div className="btn-row" style={{ justifyContent: 'flex-start' }}>
                 <button className="btn btn-primary" onClick={() => saveSlot(slots[i])}>💾 保存</button>
@@ -371,7 +368,7 @@ function SlotsPage() {
           )
         })}
         <div className="btn-row" style={{ justifyContent: 'flex-start' }}>
-          <button className="btn btn-success" onClick={() => setSlots([...slots, { slot: slots.length, body: '', temperature: 1 }])}>+ 新增风格</button>
+          <button className="btn btn-success" onClick={() => setSlots([...slots, { slot: Math.max(-1, ...slots.map((s) => s.slot)) + 1, name: '', body: '', temperature: 1 }])}>+ 新增风格</button>
         </div>
       </div>
 
@@ -400,8 +397,8 @@ function DocsPage() {
           <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>二、快速上手</h3>
           <p>按导航顺序从左到右：</p>
           <ol style={{ paddingLeft: 20 }}>
-            <li><b>✍️ 生成</b>：日常用这一页就够。选产品系列 / 文案类型等下拉 → 填品牌、语气 → 点「生成」。等进度走完，逐份看审核结果、编辑、定稿。</li>
-            <li><b>🎨 文案风格</b>：调整 AI 的写法。顶部「写作设定」放稳定背景（身份、调性）；下方每个风格一条提示词，并行各出一份候选；底部「审核意见设定」控制审核怎么打分。</li>
+            <li><b>✍️ 生成</b>：日常用这一页就够。选产品系列 / 文案类型等下拉 → 填品牌 → 点「生成」。等进度走完，逐份看审核结果、编辑、定稿。</li>
+            <li><b>🎨 文案风格</b>：调整 AI 的写法。顶部「写作设定」放稳定背景（身份、品牌）；下方每个风格一个名字 + 一条提示词，并行各出一份候选；底部「审核意见设定」控制审核怎么打分。</li>
             <li><b>🎚️ 选项配置</b>：维护生成页的下拉选项（产品系列、文案类型等）。改完点「保存全部」。</li>
             <li><b>📚 产品知识</b>：按产品系列维护知识文本，生成时自动注入对应系列的内容。</li>
             <li><b>🗂️ 历史</b>：查看所有定稿，含审核结果。</li>
@@ -411,9 +408,9 @@ function DocsPage() {
           <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>三、生成页怎么用</h3>
           <ul style={{ paddingLeft: 20 }}>
             <li><b>模型</b>：选 kimi 或自定义模型。</li>
-            <li><b>品牌 / 语气</b>：固定输入，提示词里用 <code>{'{品牌}'}</code> / <code>{'{语气}'}</code> 引用。值会记住，下次还在。</li>
+            <li><b>品牌</b>：固定输入，提示词里用 <code>{'{品牌}'}</code> 引用。值会记住，下次还在。</li>
             <li><b>下拉选项</b>：产品系列、文案类型等。每个选项标题后有 <code>{'{var}'}</code> 标签，告诉你这个选项对应提示词里哪个变量。带约束的维度（如文案类型）选后会额外注入约束片段（如 <code>{'{文案类型约束}'}</code> = 朋友圈不超过7行…）。</li>
-            <li><b>补充输入</b>：除品牌/语气外，需要别的变量就点「＋ 添加」，填变量名和值，提示词里用 <code>{'{变量名}'}</code> 引用。同样会记住。</li>
+            <li><b>补充输入</b>：除品牌外，需要别的变量就点「＋ 添加」，填变量名和值，提示词里用 <code>{'{变量名}'}</code> 引用。同样会记住。</li>
             <li><b>生成后</b>：每份候选文案独立显示，带审核状态（待审/已审/待重审/已定稿）、打分、三维度意见。可直接编辑文本，单份「重新审核」「定稿」。</li>
           </ul>
 
@@ -752,19 +749,20 @@ function App() {
   const [page, setPage] = useState<Page>('generate')
   // 提升到顶层的共享状态
   const [genProvider, setGenProvider] = useState('kimi')
-  // 补充输入：name/value，localStorage 持久化，默认 品牌/语气
+  // 补充输入：name/value，localStorage 持久化，默认 品牌
   const [extraInputs, setExtraInputs] = useState<Record<string, string>>(() => {
     try {
       const saved = localStorage.getItem('copygen_extra_inputs')
       if (saved) {
         const obj = JSON.parse(saved)
-        // 旧版用 brand/tone，迁移到中文 key
+        // 旧版用 brand/tone，迁移到中文 key；语气已移除（改由文案风格控制）
         if (obj.brand !== undefined) { obj['品牌'] = obj.brand; delete obj.brand }
-        if (obj.tone !== undefined) { obj['语气'] = obj.tone; delete obj.tone }
+        if (obj.tone !== undefined) { delete obj.tone }
+        if (obj['语气'] !== undefined) { delete obj['语气'] }
         return obj
       }
     } catch { /* ignore */ }
-    return { '品牌': '爱他美', '语气': '专业' }
+    return { '品牌': '爱他美' }
   })
   useEffect(() => { try { localStorage.setItem('copygen_extra_inputs', JSON.stringify(extraInputs)) } catch { /* ignore */ } }, [extraInputs])
   const [provEditing, setProvEditing] = useState<Record<string, Provider>>({})

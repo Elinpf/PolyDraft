@@ -66,7 +66,7 @@ async def get_slots():
 
 @app.post("/slots")
 async def add_slot(s: GenSlot):
-    save_slot(s.slot, s.body, s.temperature)
+    save_slot(s.slot, s.body, s.temperature, s.name)
     return {"ok": True}
 
 

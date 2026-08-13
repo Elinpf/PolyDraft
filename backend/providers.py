@@ -122,24 +122,29 @@ class LLMProvider:
                 messages=messages,
                 temperature=temperature,
             )
-            log_call(self.cfg.name, True, int((time.perf_counter() - start) * 1000))
+            log_call(self.cfg.name, True, int((time.perf_counter() - start) * 1000),
+                     messages=messages, model=self.cfg.model)
             return resp.choices[0].message.content
         except Exception as e:
-            log_call(self.cfg.name, False, int((time.perf_counter() - start) * 1000), str(e))
+            log_call(self.cfg.name, False, int((time.perf_counter() - start) * 1000), str(e),
+                     messages=messages, model=self.cfg.model)
             raise
 
     async def ping(self) -> bool:
+        ping_msgs = [{"role": "user", "content": "ping"}]
         start = time.perf_counter()
         try:
             await self.client.chat.completions.create(
                 model=self.cfg.model,
-                messages=[{"role": "user", "content": "ping"}],
+                messages=ping_msgs,
                 max_tokens=1,
             )
-            log_call(self.cfg.name, True, int((time.perf_counter() - start) * 1000))
+            log_call(self.cfg.name, True, int((time.perf_counter() - start) * 1000),
+                     messages=ping_msgs, model=self.cfg.model)
             return True
         except Exception as e:
-            log_call(self.cfg.name, False, int((time.perf_counter() - start) * 1000), str(e))
+            log_call(self.cfg.name, False, int((time.perf_counter() - start) * 1000), str(e),
+                     messages=ping_msgs, model=self.cfg.model)
             return False
 
 

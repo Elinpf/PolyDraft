@@ -11,6 +11,7 @@ from .db import conn
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS generate_slots (
     slot        INTEGER PRIMARY KEY,
+    name        TEXT NOT NULL DEFAULT '',   -- 风格名（小标题，用户可改，如 官方版/亲切版）
     body        TEXT NOT NULL,
     temperature REAL NOT NULL DEFAULT 1.0   -- 对产品隐藏，后端固定 1
 );
@@ -55,9 +56,9 @@ CREATE TABLE IF NOT EXISTS product_knowledge (
 """
 
 _DEFAULT_SLOTS = [
-    (0, "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}\n语气：{语气}", 1.0),
-    (1, "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}\n语气：{语气}", 1.0),
-    (2, "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}\n语气：{语气}", 1.0),
+    (0, "官方版", "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}", 1.0),
+    (1, "亲切版", "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}", 1.0),
+    (2, "闺蜜版", "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}", 1.0),
 ]
 # 旧版默认槽位（用于一次性迁移到维度变量版）
 _OLD_DEFAULT_SLOTS = [
@@ -86,9 +87,11 @@ _DEFAULT_REVIEW = (
 )
 # 旧版综合审查 prompt（用于一次性迁移到三维度独立审核版）
 _OLD_DEFAULT_REVIEW = "以下是多份候选文案，请逐份点评并给出综合改进意见：\n{candidates}"
-_DEFAULT_SYSTEM = "你是品牌官方私域内容专家，身份为品牌官方营养师/喂养顾问。请用专业、克制、有温度的语气撰写文案。\n品牌：{品牌}\n语气：{语气}\n\n产品知识：\n{产品知识}"
+_DEFAULT_SYSTEM = "你是品牌官方私域内容专家，身份为品牌官方营养师/喂养顾问。请用专业、克制、有温度的语气撰写文案。\n品牌：{品牌}\n\n产品知识：\n{产品知识}"
 # 英文占位版默认 system prompt（用于一次性迁移到中文占位版）
 _OLD_EN_SYSTEM = "你是品牌官方私域内容专家，身份为品牌官方营养师/喂养顾问。请用专业、克制、有温度的语气撰写文案。\n品牌：{brand}\n语气：{tone}\n\n产品知识：\n{产品知识}"
+# 中文占位但仍含 {语气} 的旧版（用于迁移到去语气版）
+_OLD_ZH_SYSTEM_WITH_TONE = "你是品牌官方私域内容专家，身份为品牌官方营养师/喂养顾问。请用专业、克制、有温度的语气撰写文案。\n品牌：{品牌}\n语气：{语气}\n\n产品知识：\n{产品知识}"
 _DEFAULT_KB = """【产品知识库】
 
 爱他美卓傲（高端牛奶粉）：
@@ -138,6 +141,7 @@ _DEFAULT_DIMENSIONS = [
 class GenSlot:
     slot: int
     body: str
+    name: str = ""
     temperature: float = 0.7
 
 
@@ -154,16 +158,21 @@ ReviewPrompt = PromptBody
 def init_store(db_path=None):
     with conn(db_path) as c:
         c.executescript(SCHEMA)
+    # 旧库迁移：generate_slots 补 name 列
+    _ensure_slot_name_column()
+    with conn(db_path) as c:
         for s in _DEFAULT_SLOTS:
-            c.execute("INSERT OR IGNORE INTO generate_slots(slot, body, temperature) VALUES (?,?,?)", s)
+            c.execute("INSERT OR IGNORE INTO generate_slots(slot, name, body, temperature) VALUES (?,?,?,?)", s)
         c.execute("INSERT OR IGNORE INTO review_prompt(id, body) VALUES (1, ?)", (_DEFAULT_REVIEW,))
         c.execute("INSERT OR IGNORE INTO system_prompt(id, body) VALUES (1, ?)", (_DEFAULT_SYSTEM,))
     # Change C：finalized 表补审核结果列
     _ensure_finalized_review_columns()
-    # 旧版默认槽位（仍含 {topic}）迁移到维度变量版，仅替换未改动的默认值
+    # 旧版默认槽位（仍含 {topic}/{语气}）迁移到维度变量版，仅替换未改动的默认值
     _migrate_default_slots()
     # {brand}/{tone} 占位迁移为中文 {品牌}/{语气}
     _migrate_brand_tone_placeholders()
+    # 移除 {语气}（语气改由文案风格控制）
+    _strip_tone_from_slots_and_system()
     # Change C：旧版综合审查 prompt 迁移到三维度独立审核版
     _migrate_review_prompt()
     # Change B：把旧「产品知识」全局变量迁移到 product_knowledge 表，并删除变量条目
@@ -174,21 +183,26 @@ def init_store(db_path=None):
     _seed_product_knowledge()
 
 
+def _ensure_slot_name_column():
+    """迁移：旧 generate_slots 表可能没有 name 列，补上。"""
+    _ensure_columns("generate_slots", [("name", "TEXT NOT NULL DEFAULT ''")])
+
+
 # --- slots ---
 
 def list_slots() -> list[GenSlot]:
     with conn() as c:
-        rows = c.execute("SELECT slot, body, temperature FROM generate_slots ORDER BY slot").fetchall()
+        rows = c.execute("SELECT slot, name, body, temperature FROM generate_slots ORDER BY slot").fetchall()
         return [GenSlot(**dict(r)) for r in rows]
 
 
-def save_slot(slot: int, body: str, temperature: float):
-    """temperature 对产品隐藏，后端固定 1，忽略客户端传入值。"""
+def save_slot(slot: int, body: str, temperature: float, name: str = ""):
+    """temperature 对产品隐藏，后端固定 1，忽略客户端传入值。name 为风格名。"""
     with conn() as c:
         c.execute(
-            "INSERT INTO generate_slots(slot, body, temperature) VALUES (?,?,?) "
-            "ON CONFLICT(slot) DO UPDATE SET body=excluded.body, temperature=1.0",
-            (slot, body, 1.0),
+            "INSERT INTO generate_slots(slot, name, body, temperature) VALUES (?,?,?,?) "
+            "ON CONFLICT(slot) DO UPDATE SET name=excluded.name, body=excluded.body, temperature=1.0",
+            (slot, name, body, 1.0),
         )
 
 
@@ -285,6 +299,40 @@ def _migrate_brand_tone_placeholders():
             if "{brand}" in r["body"]:
                 new = r["body"].replace("{brand}", "{品牌}").replace("{tone}", "{语气}")
                 c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (new, r["slot"]))
+
+
+def _strip_tone_from_slots_and_system():
+    """一次性迁移：移除 {语气} 变量（语气改由文案风格控制）。
+
+    - generate_slots / system_prompt 里删掉「语气：{语气}」行，并替换裸 {语气} 占位为空。
+    - 默认槽位（仍是老 body）整体替换为新默认值。
+    """
+    with conn() as c:
+        # system_prompt：默认值整体替换；用户改过的删语气行 + 裸占位
+        row = c.execute("SELECT body FROM system_prompt WHERE id=1").fetchone()
+        if row:
+            body = row["body"]
+            if body in (_OLD_ZH_SYSTEM_WITH_TONE, _OLD_EN_SYSTEM):
+                c.execute("UPDATE system_prompt SET body=? WHERE id=1", (_DEFAULT_SYSTEM,))
+            elif "{语气}" in body:
+                import re
+                new = re.sub(r"^\s*语气：\{语气\}\s*\n", "", body, flags=re.MULTILINE)
+                new = new.replace("{语气}", "")
+                c.execute("UPDATE system_prompt SET body=? WHERE id=1", (new,))
+        # generate_slots：默认值整体替换；用户改过的删语气行 + 裸占位
+        rows = c.execute("SELECT slot, body FROM generate_slots").fetchall()
+        # 旧默认（含 {语气}）→ 新默认 body
+        old_with_tone = [b.replace("品牌：{品牌}\n语气：{语气}", "品牌：{品牌}") for b in _OLD_EN_SLOTS]
+        for r in rows:
+            slot, body = r["slot"], r["body"]
+            if body in old_with_tone:
+                idx = old_with_tone.index(body)
+                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (_DEFAULT_SLOTS[idx][2], slot))
+            elif "{语气}" in body:
+                import re
+                new = re.sub(r"^\s*语气：\{语气\}\s*\n", "", body, flags=re.MULTILINE)
+                new = new.replace("{语气}", "")
+                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (new, slot))
 
 
 def _migrate_review_prompt():
