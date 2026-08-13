@@ -25,6 +25,9 @@ type SharedState = {
   // 定稿刷新信号：定稿后 +1，历史页监听并重新拉取
   finalizeTick: number
   bumpFinalizeTick: () => void
+  // 维度变更信号：选项配置增删改后 +1，生成页监听重拉维度（页面常驻，切回可见新维度）
+  dimsTick: number
+  bumpDimsTick: () => void
 }
 
 // ============ 生成页 ============
@@ -38,12 +41,26 @@ function GeneratePage({ s }: { s: SharedState }) {
   const [failureDetail, setFailureDetail] = useState<{ slot: number; error: string }[]>([])
   const [dimensions, setDimensions] = useState<Dimension[]>([])
   const [selections, setSelections] = useState<Record<string, string>>({})
+  // 选用维度子集：勾选哪些维度渲染哪些下拉。按生成页方案 ID 存（当前 default）。
+  const [selectedDims, setSelectedDims] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('copygen_selected_dims_default')
+      if (saved) return JSON.parse(saved)
+    } catch { /* ignore */ }
+    return []  // 空表示首次，loadDims 后用全部维度填充
+  })
+  useEffect(() => { try { localStorage.setItem('copygen_selected_dims_default', JSON.stringify(selectedDims)) } catch { /* ignore */ } }, [selectedDims])
 
   async function loadDims() {
     const data: Dimension[] = await (await fetch('/dimensions')).json()
     setDimensions(data)
+    // 首次（无存档）默认全勾现有维度；有存档则清理已不存在的维度（悬空清理）
+    setSelectedDims((prev) => {
+      if (prev.length === 0 && data.length > 0) return data.map((d) => d.name)
+      return prev.filter((n) => data.some((d) => d.name === n))
+    })
   }
-  useEffect(() => { loadDims() }, [])
+  useEffect(() => { loadDims() }, [s.dimsTick])
 
   const inputVars = () => s.extraInputs
 
@@ -159,10 +176,30 @@ function GeneratePage({ s }: { s: SharedState }) {
           </div>
         </div>
         {dimensions.length === 0 && (
-          <p style={{ fontSize: 13, color: 'var(--muted)' }}>尚未配置选项维度。请到「选项维度」页配置产品系列 / 文案类型等，再回到这里选择生成。</p>
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>尚未配置选项维度。请到「选项配置」页配置产品系列 / 文案类型等，再回到这里选择生成。</p>
         )}
-        <div className="form-row">
-          {dimensions.map((d) => (
+        {dimensions.length > 0 && (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>选用维度（勾选的才显示下拉，可随时增减）：</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {dimensions.map((d) => {
+                const on = selectedDims.includes(d.name)
+                return (
+                  <button key={d.id} type="button" onClick={() => setSelectedDims((prev) => on ? prev.filter((n) => n !== d.name) : [...prev, d.name])}
+                    style={{
+                      padding: '4px 10px', fontSize: 12, borderRadius: 14, cursor: 'pointer', border: '1px solid var(--gold, #d4b87a)',
+                      background: on ? 'var(--gold, #d4b87a)' : 'transparent',
+                      color: on ? '#fff' : 'var(--gold-dark, #8a6d2f)',
+                    }}>
+                    {on ? '✓' : '+'} {d.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+        <div className="form-row dim-grid">
+          {dimensions.filter((d) => selectedDims.includes(d.name)).map((d) => (
             <div className="form-group" key={d.id}>
               <label>{d.kind === 'prompt' ? '✍️' : '🏷️'} {d.name} <code className="var-tag">{'{'+d.name+'}'}</code>{d.kind === 'prompt' && <code className="var-tag" style={{ marginLeft: 4 }}>{'{'+d.name+'提示词}'}</code>}</label>
               <select value={selections[d.name] ?? ''} onChange={(e) => setSelections({ ...selections, [d.name]: e.target.value })}>
@@ -189,7 +226,7 @@ function GeneratePage({ s }: { s: SharedState }) {
             </div>
           ))}
           <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => {
-            let n = 1; while (s.extraInputs[`var${n}`]) n++; s.setExtraInputs({ ...s.extraInputs, [`var${n}`]: '' })
+            let n = 1; while (`var${n}` in s.extraInputs) n++; s.setExtraInputs({ ...s.extraInputs, [`var${n}`]: '' })
           }}>＋ 添加补充输入</button>
         </div>
 
@@ -457,7 +494,7 @@ function DocsPage() {
 
 // ============ 选项维度管理页 ============
 
-function OptionsPage() {
+function OptionsPage({ s }: { s: SharedState }) {
   const [dims, setDims] = useState<Dimension[]>([])
   const [newName, setNewName] = useState('')
   const [newKind, setNewKind] = useState<'value' | 'prompt'>('value')
@@ -472,15 +509,15 @@ function OptionsPage() {
     if (!newName.trim()) return alert('维度名不能为空')
     const r = await fetch('/dimensions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName, kind: newKind }) })
     if (!r.ok) { const d = await r.json(); return alert(d.detail || '失败') }
-    setNewName(''); load()
+    setNewName(''); load(); s.bumpDimsTick()
   }
   async function delDim(d: Dimension) {
     if (!confirm(`删除维度「${d.name}」及其所有选项？`)) return
-    await fetch(`/dimensions/${d.id}`, { method: 'DELETE' }); load()
+    await fetch(`/dimensions/${d.id}`, { method: 'DELETE' }); load(); s.bumpDimsTick()
   }
   async function delChoice(d: Dimension, c: Choice) {
     if (!confirm(`删除选项「${c.label}」？`)) return
-    await fetch(`/choices/${c.id}`, { method: 'DELETE' }); load()
+    await fetch(`/choices/${c.id}`, { method: 'DELETE' }); load(); s.bumpDimsTick()
   }
 
   // 本地编辑：更新某个维度的字段（不立即存库）
@@ -508,7 +545,7 @@ function OptionsPage() {
     setSaving(false)
     if (errs.length) alert('部分保存失败：\n' + errs.join('\n'))
     else alert('已保存')
-    load()
+    load(); s.bumpDimsTick()
   }
 
   return (
@@ -570,7 +607,7 @@ function OptionsPage() {
             if (!label.trim()) return alert('选项名不能为空')
             const r = await fetch(`/dimensions/${d.id}/choices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, value, prompt_fragment: frag }) })
             if (!r.ok) { const dd = await r.json(); return alert(dd.detail || '失败') }
-            load()
+            load(); s.bumpDimsTick()
           }} promptKind={d.kind} />
         </div>
       ))}
@@ -769,6 +806,7 @@ function App() {
   useEffect(() => { try { localStorage.setItem('copygen_extra_inputs', JSON.stringify(extraInputs)) } catch { /* ignore */ } }, [extraInputs])
   const [provEditing, setProvEditing] = useState<Record<string, Provider>>({})
   const [finalizeTick, setFinalizeTick] = useState(0)
+  const [dimsTick, setDimsTick] = useState(0)
 
   async function reloadProviders() {
     const data = await (await fetch('/providers')).json()
@@ -783,6 +821,7 @@ function App() {
     extraInputs, setExtraInputs,
     provEditing, setProvEditing, reloadProviders,
     finalizeTick, bumpFinalizeTick: () => setFinalizeTick((n) => n + 1),
+    dimsTick, bumpDimsTick: () => setDimsTick((n) => n + 1),
   }
 
   const navItems: { key: Page; label: string; icon: string }[] = [
@@ -810,7 +849,7 @@ function App() {
       <div style={{ display: page === 'generate' ? 'block' : 'none' }}><GeneratePage s={shared} /></div>
       <div style={{ display: page === 'config' ? 'block' : 'none' }}><ConfigPage s={shared} /></div>
       <div style={{ display: page === 'slots' ? 'block' : 'none' }}><SlotsPage /></div>
-      <div style={{ display: page === 'options' ? 'block' : 'none' }}><OptionsPage /></div>
+      <div style={{ display: page === 'options' ? 'block' : 'none' }}><OptionsPage s={shared} /></div>
       <div style={{ display: page === 'knowledge' ? 'block' : 'none' }}><KnowledgePage /></div>
       <div style={{ display: page === 'history' ? 'block' : 'none' }}><HistoryPage s={shared} /></div>
       <div style={{ display: page === 'docs' ? 'block' : 'none' }}><DocsPage /></div>
