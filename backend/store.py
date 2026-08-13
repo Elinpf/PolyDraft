@@ -56,9 +56,9 @@ CREATE TABLE IF NOT EXISTS product_knowledge (
 """
 
 _DEFAULT_SLOTS = [
-    (0, "官方版", "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}", 1.0),
-    (1, "亲切版", "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}", 1.0),
-    (2, "闺蜜版", "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{品牌}", 1.0),
+    (0, "官方版", "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{品牌}", 1.0),
+    (1, "亲切版", "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{品牌}", 1.0),
+    (2, "闺蜜版", "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{品牌}", 1.0),
 ]
 # 旧版默认槽位（用于一次性迁移到维度变量版）
 _OLD_DEFAULT_SLOTS = [
@@ -68,9 +68,9 @@ _OLD_DEFAULT_SLOTS = [
 ]
 # 英文占位版默认槽位（用于一次性迁移到中文占位版）
 _OLD_EN_SLOTS = [
-    "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{brand}\n语气：{tone}",
-    "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{brand}\n语气：{tone}",
-    "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型约束}\n品牌：{brand}\n语气：{tone}",
+    "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{brand}\n语气：{tone}",
+    "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{brand}\n语气：{tone}",
+    "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{brand}\n语气：{tone}",
 ]
 _DEFAULT_REVIEW = (
     "请审核以下文案，从三个维度评估并给出综合打分（0-100 整数）：\n"
@@ -173,6 +173,8 @@ def init_store(db_path=None):
     _migrate_brand_tone_placeholders()
     # 移除 {语气}（语气改由文案风格控制）
     _strip_tone_from_slots_and_system()
+    # {X约束} 占位重命名为 {X提示词}（更通用）
+    _rename_constraint_to_prompt_var()
     # Change C：旧版综合审查 prompt 迁移到三维度独立审核版
     _migrate_review_prompt()
     # Change B：把旧「产品知识」全局变量迁移到 product_knowledge 表，并删除变量条目
@@ -333,6 +335,23 @@ def _strip_tone_from_slots_and_system():
                 new = re.sub(r"^\s*语气：\{语气\}\s*\n", "", body, flags=re.MULTILINE)
                 new = new.replace("{语气}", "")
                 c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (new, slot))
+
+
+def _rename_constraint_to_prompt_var():
+    """一次性迁移：把提示词里的 {X约束} 占位重命名为 {X提示词}（更通用）。
+
+    覆盖 system_prompt 与 generate_slots。
+    """
+    import re
+    with conn() as c:
+        row = c.execute("SELECT body FROM system_prompt WHERE id=1").fetchone()
+        if row and "约束}" in row["body"]:
+            new = re.sub(r"\{([^{}]+)约束\}", r"{\1提示词}", row["body"])
+            c.execute("UPDATE system_prompt SET body=? WHERE id=1", (new,))
+        for r in c.execute("SELECT slot, body FROM generate_slots").fetchall():
+            if "约束}" in r["body"]:
+                new = re.sub(r"\{([^{}]+)约束\}", r"{\1提示词}", r["body"])
+                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (new, r["slot"]))
 
 
 def _migrate_review_prompt():
@@ -516,7 +535,7 @@ def selections_to_vars(selections: dict) -> dict:
     """把用户所选「维度名 -> 选项 label」解析为变量上下文。
 
     纯值维度：{维度名} = 选项 value（空则用 label）
-    带 prompt 维度：额外注入 {维度名约束} = prompt_fragment
+    带 prompt 维度：额外注入 {维度名提示词} = prompt_fragment
 
     返回 dict 中「维度名 -> 选项 value」可直接复用于产品知识查询。
     """
@@ -534,7 +553,7 @@ def selections_to_vars(selections: dict) -> dict:
             continue
         out[dim.name] = ch.value or ch.label
         if dim.kind == "prompt" and ch.prompt_fragment:
-            out[dim.name + "约束"] = ch.prompt_fragment
+            out[dim.name + "提示词"] = ch.prompt_fragment
     return out
 
 

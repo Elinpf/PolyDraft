@@ -164,7 +164,7 @@ function GeneratePage({ s }: { s: SharedState }) {
         <div className="form-row">
           {dimensions.map((d) => (
             <div className="form-group" key={d.id}>
-              <label>{d.kind === 'prompt' ? '✍️' : '🏷️'} {d.name} <code className="var-tag">{'{'+d.name+'}'}</code>{d.kind === 'prompt' && <code className="var-tag" style={{ marginLeft: 4 }}>{'{'+d.name+'约束}'}</code>}</label>
+              <label>{d.kind === 'prompt' ? '✍️' : '🏷️'} {d.name} <code className="var-tag">{'{'+d.name+'}'}</code>{d.kind === 'prompt' && <code className="var-tag" style={{ marginLeft: 4 }}>{'{'+d.name+'提示词}'}</code>}</label>
               <select value={selections[d.name] ?? ''} onChange={(e) => setSelections({ ...selections, [d.name]: e.target.value })}>
                 <option value="">— 请选择 {d.name} —</option>
                 {d.choices.map((c) => <option key={c.id} value={c.label}>{c.label}</option>)}
@@ -409,7 +409,7 @@ function DocsPage() {
           <ul style={{ paddingLeft: 20 }}>
             <li><b>模型</b>：选 kimi 或自定义模型。</li>
             <li><b>品牌</b>：固定输入，提示词里用 <code>{'{品牌}'}</code> 引用。值会记住，下次还在。</li>
-            <li><b>下拉选项</b>：产品系列、文案类型等。每个选项标题后有 <code>{'{var}'}</code> 标签，告诉你这个选项对应提示词里哪个变量。带约束的维度（如文案类型）选后会额外注入约束片段（如 <code>{'{文案类型约束}'}</code> = 朋友圈不超过7行…）。</li>
+            <li><b>下拉选项</b>：产品系列、文案类型等。每个选项标题后有 <code>{'{var}'}</code> 标签，告诉你这个选项对应提示词里哪个变量。带提示词的维度（如文案类型）选后会额外注入提示词片段（如 <code>{'{文案类型提示词}'}</code> = 朋友圈不超过7行…）。</li>
             <li><b>补充输入</b>：除品牌外，需要别的变量就点「＋ 添加」，填变量名和值，提示词里用 <code>{'{变量名}'}</code> 引用。同样会记住。</li>
             <li><b>生成后</b>：每份候选文案独立显示，带审核状态（待审/已审/待重审/已定稿）、打分、三维度意见。可直接编辑文本，单份「重新审核」「定稿」。</li>
           </ul>
@@ -425,7 +425,7 @@ function DocsPage() {
 
           <h3 style={{ marginTop: 16, color: 'var(--gold-dark)' }}>五、选项配置与产品知识</h3>
           <ul style={{ paddingLeft: 20 }}>
-            <li><b>🎚️ 维度</b>：纯值维度（如产品系列）只注入值；带约束维度（如文案类型）的每个选项可带约束片段。维度名 = 变量名。<b>改完必须点「保存全部」</b>。</li>
+            <li><b>🎚️ 维度</b>：纯值维度（如产品系列）只注入值；带提示词维度（如文案类型）的每个选项可带一段提示词。维度名 = 变量名。<b>改完必须点「保存全部」</b>。</li>
             <li><b>📚 产品知识</b>：每个产品系列一条知识文本。生成页选某系列时，对应内容通过 <code>{'{产品知识}'}</code> 注入。这里的「系列」= 选项配置里产品系列维度的<b>选项值</b>（如 A），卡片标题会标注它对应的人类可读名（如 至臻）。</li>
           </ul>
 
@@ -516,14 +516,14 @@ function OptionsPage() {
       <div className="panel">
         <div className="panel-header"><div className="icon">🎚️</div><h2>选项配置</h2><span className="tag">{dims.length}</span></div>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>
-          维度即生成页的下拉选项。纯值维度（如产品系列）只注入值；带约束维度（如文案类型）的每个选项可带约束片段，选中后用 <code>{'{维度名约束}'}</code> 注入。维度名即变量 key（如 <code>{'{产品系列}'}</code>）。
+          维度即生成页的下拉选项。纯值维度（如产品系列）只注入值；带提示词维度（如文案类型）的每个选项可带一段提示词，选中后用 <code>{'{维度名提示词}'}</code> 注入。维度名即变量 key（如 <code>{'{产品系列}'}</code>）。
         </p>
 
         <div className="form-row">
           <div className="form-group"><label>类型</label>
             <select value={newKind} onChange={(e) => setNewKind(e.target.value as 'value' | 'prompt')}>
               <option value="value">🏷️ 纯值维度（只注入值）</option>
-              <option value="prompt">✍️ 带约束（每选项带约束片段）</option>
+              <option value="prompt">✍️ 带提示词（每选项带一段提示词）</option>
             </select>
           </div>
           <div className="form-group"><label>维度名</label><input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="如 产品系列 / 文案类型" /></div>
@@ -537,13 +537,13 @@ function OptionsPage() {
       {dims.map((d) => (
         <div className="panel" key={d.id}>
           <div className="panel-header"><div className="icon">{d.kind === 'prompt' ? '✍️' : '🏷️'}</div>
-            <h2>{d.name}</h2><span className="tag">{d.kind === 'prompt' ? '带约束' : '纯值'} · {d.choices.length} 选项</span>
+            <h2>{d.name}</h2><span className="tag">{d.kind === 'prompt' ? '带提示词' : '纯值'} · {d.choices.length} 选项</span>
           </div>
           <div className="form-row" style={{ alignItems: 'flex-end' }}>
-            <div className="form-group"><label>维度名 <code className="var-tag">{'{'+d.name+'}'}</code>{d.kind === 'prompt' && <code className="var-tag" style={{ marginLeft: 4 }}>{'{'+d.name+'约束}'}</code>}</label><input value={d.name} onChange={(e) => patchDim(d.id, { name: e.target.value })} /></div>
+            <div className="form-group"><label>维度名 <code className="var-tag">{'{'+d.name+'}'}</code>{d.kind === 'prompt' && <code className="var-tag" style={{ marginLeft: 4 }}>{'{'+d.name+'提示词}'}</code>}</label><input value={d.name} onChange={(e) => patchDim(d.id, { name: e.target.value })} /></div>
             <div className="form-group"><label>类型</label>
               <select value={d.kind} onChange={(e) => patchDim(d.id, { kind: e.target.value as 'value' | 'prompt' })}>
-                <option value="value">纯值</option><option value="prompt">带约束</option>
+                <option value="value">纯值</option><option value="prompt">带提示词</option>
               </select>
             </div>
             <button className="btn btn-danger" onClick={() => delDim(d)}>🗑️ 删除维度</button>
@@ -559,7 +559,7 @@ function OptionsPage() {
                 <div className="form-group"><label>注入值（可空，空则用选项名）</label><input value={c.value} onChange={(e) => patchChoice(d.id, c.id, { value: e.target.value })} /></div>
               </div>
               {d.kind === 'prompt' && (
-                <div className="form-group"><label>约束片段（用 <code>{'{'+d.name+'约束}'}</code> 注入）</label>
+                <div className="form-group"><label>提示词片段（用 <code>{'{'+d.name+'提示词}'}</code> 注入）</label>
                   <textarea style={{ minHeight: 80 }} value={c.prompt_fragment} onChange={(e) => patchChoice(d.id, c.id, { prompt_fragment: e.target.value })} />
                 </div>
               )}
@@ -592,7 +592,7 @@ function AddChoiceRow({ onAdd, promptKind }: { onAdd: (label: string, value: str
         <div className="form-group"><label>注入值（可空）</label><input value={value} onChange={(e) => setValue(e.target.value)} placeholder="空则用选项名" /></div>
       </div>
       {promptKind === 'prompt' && (
-        <div className="form-group"><label>约束片段</label><textarea style={{ minHeight: 70 }} value={frag} onChange={(e) => setFrag(e.target.value)} placeholder="如：不超过7行，每行…" /></div>
+        <div className="form-group"><label>提示词片段</label><textarea style={{ minHeight: 70 }} value={frag} onChange={(e) => setFrag(e.target.value)} placeholder="如：不超过7行，每行…" /></div>
       )}
     </div>
   )
