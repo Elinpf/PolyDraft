@@ -20,6 +20,7 @@ from .store import (init_store, list_slots, save_slot, delete_slot,
                     list_product_knowledge, save_product_knowledge,
                     delete_product_knowledge, ProductKnowledge)
 from .pipeline import GenerateInput, run, re_review
+from .review import ReviewFields
 setup_logging()
 init_db()
 init_providers()
@@ -259,8 +260,10 @@ async def list_fin():
 
 @app.post("/finalized")
 async def save_fin(fin: FinalizeInput):
+    rf = ReviewFields(score=fin.score, positive=fin.positive,
+                      reverse=fin.reverse, accuracy=fin.accuracy)
     fid = save_finalized(fin.provider, fin.input_vars, fin.selected_idx, fin.text,
-                         fin.review, fin.score, fin.positive, fin.reverse, fin.accuracy)
+                         fin.review, rf)
     return {"ok": True, "id": fid}
 
 

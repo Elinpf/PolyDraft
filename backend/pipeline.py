@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass, field
 
 from .providers import LLMProvider
+from .review import ReviewFields
 from .store import (list_slots, get_review_prompt, get_system_prompt,
                     selections_to_vars, product_knowledge_for_selection)
 from .log_store import log_generation, log_operation
@@ -22,11 +23,7 @@ class GenerateInput:
 
 
 @dataclass
-class ReviewResult:
-    score: int = 0
-    positive: str = ""
-    reverse: str = ""
-    accuracy: str = ""
+class ReviewResult(ReviewFields):
     raw: str = ""
 
     def to_dict(self) -> dict:

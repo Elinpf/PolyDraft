@@ -1,11 +1,22 @@
-"""提示词数据层 — Change 2/4（多槽位 + review_prompt + variables）。
+"""数据层 CRUD + init_store 编排。
 
-generate_slots 多行；review_prompt 单例；variables 全局变量表。
-Change 4 加：variables + SYSTEM_VARS + merge_variables。
+从原 store.py 收窄：提示词模板常量 → prompts.py；一次性迁移函数 → migrations.py。
+本文件只留 SCHEMA、dataclass、CRUD、init_store 编排与 seed。
 """
 from dataclasses import dataclass
 import json
 from .db import conn
+from .review import ReviewFields
+from .prompts import (
+    _DEFAULT_SLOTS, _DEFAULT_REVIEW, _DEFAULT_SYSTEM,
+    _DEFAULT_KB_SERIES, _DEFAULT_DIMENSIONS,
+)
+from .migrations import (
+    _ensure_slot_name_column, _ensure_finalized_review_columns,
+    _migrate_default_slots, _migrate_brand_tone_placeholders,
+    _strip_tone_from_slots_and_system, _rename_constraint_to_prompt_var,
+    _migrate_review_prompt, _migrate_product_knowledge,
+)
 
 
 SCHEMA = """
@@ -55,87 +66,6 @@ CREATE TABLE IF NOT EXISTS product_knowledge (
 );
 """
 
-_DEFAULT_SLOTS = [
-    (0, "官方版", "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{品牌}", 1.0),
-    (1, "亲切版", "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{品牌}", 1.0),
-    (2, "闺蜜版", "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{品牌}", 1.0),
-]
-# 旧版默认槽位（用于一次性迁移到维度变量版）
-_OLD_DEFAULT_SLOTS = [
-    "请根据以下信息写一段营销文案，风格专业严谨。\n主题：{topic}\n品牌：{brand}\n语气：{tone}",
-    "请根据以下信息写一段营销文案，风格活泼口语化。\n主题：{topic}\n品牌：{brand}\n语气：{tone}",
-    "请根据以下信息写一段营销文案，风格故事化、有画面感。\n主题：{topic}\n品牌：{brand}\n语气：{tone}",
-]
-# 英文占位版默认槽位（用于一次性迁移到中文占位版）
-_OLD_EN_SLOTS = [
-    "请撰写一段营销文案，风格为「官方版」：专业严谨、权威克制。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{brand}\n语气：{tone}",
-    "请撰写一段营销文案，风格为「亲切版」：活泼口语化、像朋友在分享。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{brand}\n语气：{tone}",
-    "请撰写一段营销文案，风格为「闺蜜版」：故事化、有画面感、走心。\n产品系列：{产品系列}\n产品段位：{产品段位}\n文案类型：{文案类型}\n约束要求：{文案类型提示词}\n品牌：{brand}\n语气：{tone}",
-]
-_DEFAULT_REVIEW = (
-    "请审核以下文案，从三个维度评估并给出综合打分（0-100 整数）：\n"
-    "- 正向亲和：是否体现亲和、温暖、贴近用户的正向表达\n"
-    "- 反向亲和：是否避免生硬、说教、推销感等引起反感的表达\n"
-    "- 产品知识准确性：是否符合产品知识，有无事实错误\n\n"
-    "产品知识参照：\n{产品知识}\n\n"
-    "待审核文案：\n{candidate}\n\n"
-    "请严格按以下格式输出，每项一行（意见可在同一行内简述）：\n"
-    "综合打分：<0-100 整数>\n"
-    "正向亲和：<意见>\n"
-    "反向亲和：<意见>\n"
-    "产品知识准确性：<意见>"
-)
-# 旧版综合审查 prompt（用于一次性迁移到三维度独立审核版）
-_OLD_DEFAULT_REVIEW = "以下是多份候选文案，请逐份点评并给出综合改进意见：\n{candidates}"
-_DEFAULT_SYSTEM = "你是品牌官方私域内容专家，身份为品牌官方营养师/喂养顾问。请用专业、克制、有温度的语气撰写文案。\n品牌：{品牌}\n\n产品知识：\n{产品知识}"
-# 英文占位版默认 system prompt（用于一次性迁移到中文占位版）
-_OLD_EN_SYSTEM = "你是品牌官方私域内容专家，身份为品牌官方营养师/喂养顾问。请用专业、克制、有温度的语气撰写文案。\n品牌：{brand}\n语气：{tone}\n\n产品知识：\n{产品知识}"
-# 中文占位但仍含 {语气} 的旧版（用于迁移到去语气版）
-_OLD_ZH_SYSTEM_WITH_TONE = "你是品牌官方私域内容专家，身份为品牌官方营养师/喂养顾问。请用专业、克制、有温度的语气撰写文案。\n品牌：{品牌}\n语气：{语气}\n\n产品知识：\n{产品知识}"
-_DEFAULT_KB = """【产品知识库】
-
-爱他美卓傲（高端牛奶粉）：
-- 9:1 自护益生元设计，含 HMO 母乳低聚糖
-- 天然乳脂 OPO，帮助钙铁锌镁吸收
-- 全段全乳糖，不添加香精蔗糖
-- 适合 0-6 岁宝宝，转奶/消化吸收顾虑
-
-爱他美领熠（超高端·奇迹系列）：
-- 独家 SYNEO®：240 亿 M-16V + 100+ 种自护益生元
-- 双源 OPO（新国标 2 倍），软化便便促吸收
-- 适合追求顶配配方、宝宝消化吸收难题的家长
-
-（在此维护产品卖点、受众、范文等知识，生成时通过 {产品知识} 注入 system prompt）"""
-
-# Change B：产品知识按系列一条文本，与「产品系列」选项维度的 value 软关联
-_DEFAULT_KB_SERIES = {
-    "A": "【产品系列 A · 卓傲（高端牛奶粉）】\n- 9:1 自护益生元设计，含 HMO 母乳低聚糖\n- 天然乳脂 OPO，帮助钙铁锌镁吸收\n- 全段全乳糖，不添加香精蔗糖\n- 适合 0-6 岁宝宝，转奶/消化吸收顾虑",
-    "B": "【产品系列 B · 领熠（超高端·奇迹系列）】\n- 独家 SYNEO®：240 亿 M-16V + 100+ 种自护益生元\n- 双源 OPO（新国标 2 倍），软化便便促吸收\n- 适合追求顶配配方、宝宝消化吸收难题的家长",
-    "C": "【产品系列 C】\n（在此维护系列 C 的产品卖点、受众、范文等知识）",
-    "D": "【产品系列 D】\n（在此维护系列 D 的产品卖点、受众、范文等知识）",
-}
-
-# 选项维度 seed：产品系列(纯值) / 产品段位(纯值) / 文案类型(带prompt片段)
-_DEFAULT_DIMENSIONS = [
-    {"name": "产品系列", "kind": "value", "choices": [
-        {"label": "A", "value": "A", "prompt_fragment": ""},
-        {"label": "B", "value": "B", "prompt_fragment": ""},
-        {"label": "C", "value": "C", "prompt_fragment": ""},
-        {"label": "D", "value": "D", "prompt_fragment": ""},
-    ]},
-    {"name": "产品段位", "kind": "value", "choices": [
-        {"label": "1", "value": "1", "prompt_fragment": ""},
-        {"label": "2", "value": "2", "prompt_fragment": ""},
-        {"label": "3", "value": "3", "prompt_fragment": ""},
-    ]},
-    {"name": "文案类型", "kind": "prompt", "choices": [
-        {"label": "朋友圈", "value": "朋友圈", "prompt_fragment": "文案不超过7行，每行不超过20字；开头要有钩子，适合朋友圈发布。"},
-        {"label": "1v1", "value": "1v1", "prompt_fragment": "1对1私聊口吻，像朋友单独对话，200字以内，语气亲近。"},
-        {"label": "社群文案", "value": "社群文案", "prompt_fragment": "适合社群群发，带互动引导与行动号召，300字以内。"},
-        {"label": "小红书", "value": "小红书", "prompt_fragment": "小红书种草风格，带emoji、分段，标题吸睛，400字以内。"},
-    ]},
-]
-
 
 @dataclass
 class GenSlot:
@@ -183,11 +113,6 @@ def init_store(db_path=None):
     _seed_dimensions()
     # 产品知识 seed
     _seed_product_knowledge()
-
-
-def _ensure_slot_name_column():
-    """迁移：旧 generate_slots 表可能没有 name 列，补上。"""
-    _ensure_columns("generate_slots", [("name", "TEXT NOT NULL DEFAULT ''")])
 
 
 # --- slots ---
@@ -251,138 +176,24 @@ def save_system_prompt(body: str):
         )
 
 
-def _ensure_columns(table: str, columns: list[tuple[str, str]]):
-    """迁移：确保 table 表存在 columns 中声明的列（[(col, decl)...]），缺则 ALTER 补。"""
-    with conn() as c:
-        cols = [r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()]
-        for col, decl in columns:
-            if col not in cols:
-                c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
-
-
-def _ensure_finalized_review_columns():
-    """迁移：旧 finalized 表可能没有 score/positive/reverse/accuracy 列，补上。"""
-    _ensure_columns("finalized", [
-        ("score", "INTEGER"),
-        ("positive", "TEXT"),
-        ("reverse", "TEXT"),
-        ("accuracy", "TEXT"),
-    ])
-
-
-def _migrate_default_slots():
-    """一次性迁移：把仍是旧版默认（含 {topic}）的槽位替换为维度变量版。"""
-    with conn() as c:
-        rows = c.execute("SELECT slot, body FROM generate_slots ORDER BY slot").fetchall()
-        for r in rows:
-            slot, body = r["slot"], r["body"]
-            if body in _OLD_DEFAULT_SLOTS:
-                idx = _OLD_DEFAULT_SLOTS.index(body)
-                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (_DEFAULT_SLOTS[idx][1], slot))
-            elif body in _OLD_EN_SLOTS:
-                # 英文占位版默认槽位 → 中文占位版
-                idx = _OLD_EN_SLOTS.index(body)
-                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (_DEFAULT_SLOTS[idx][1], slot))
-
-
-def _migrate_brand_tone_placeholders():
-    """一次性迁移：把提示词里的 {brand}/{tone} 占位替换为中文 {品牌}/{语气}。
-
-    覆盖 system_prompt 与所有 generate_slots，仅做占位替换，保留用户其他改动。
-    """
-    with conn() as c:
-        row = c.execute("SELECT body FROM system_prompt WHERE id=1").fetchone()
-        if row and "{brand}" in row["body"]:
-            new = row["body"].replace("{brand}", "{品牌}").replace("{tone}", "{语气}")
-            c.execute("UPDATE system_prompt SET body=? WHERE id=1", (new,))
-        elif row and row["body"] == _OLD_EN_SYSTEM:
-            c.execute("UPDATE system_prompt SET body=? WHERE id=1", (_DEFAULT_SYSTEM,))
-        for r in c.execute("SELECT slot, body FROM generate_slots").fetchall():
-            if "{brand}" in r["body"]:
-                new = r["body"].replace("{brand}", "{品牌}").replace("{tone}", "{语气}")
-                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (new, r["slot"]))
-
-
-def _strip_tone_from_slots_and_system():
-    """一次性迁移：移除 {语气} 变量（语气改由文案风格控制）。
-
-    - generate_slots / system_prompt 里删掉「语气：{语气}」行，并替换裸 {语气} 占位为空。
-    - 默认槽位（仍是老 body）整体替换为新默认值。
-    """
-    with conn() as c:
-        # system_prompt：默认值整体替换；用户改过的删语气行 + 裸占位
-        row = c.execute("SELECT body FROM system_prompt WHERE id=1").fetchone()
-        if row:
-            body = row["body"]
-            if body in (_OLD_ZH_SYSTEM_WITH_TONE, _OLD_EN_SYSTEM):
-                c.execute("UPDATE system_prompt SET body=? WHERE id=1", (_DEFAULT_SYSTEM,))
-            elif "{语气}" in body:
-                import re
-                new = re.sub(r"^\s*语气：\{语气\}\s*\n", "", body, flags=re.MULTILINE)
-                new = new.replace("{语气}", "")
-                c.execute("UPDATE system_prompt SET body=? WHERE id=1", (new,))
-        # generate_slots：默认值整体替换；用户改过的删语气行 + 裸占位
-        rows = c.execute("SELECT slot, body FROM generate_slots").fetchall()
-        # 旧默认（含 {语气}）→ 新默认 body
-        old_with_tone = [b.replace("品牌：{品牌}\n语气：{语气}", "品牌：{品牌}") for b in _OLD_EN_SLOTS]
-        for r in rows:
-            slot, body = r["slot"], r["body"]
-            if body in old_with_tone:
-                idx = old_with_tone.index(body)
-                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (_DEFAULT_SLOTS[idx][2], slot))
-            elif "{语气}" in body:
-                import re
-                new = re.sub(r"^\s*语气：\{语气\}\s*\n", "", body, flags=re.MULTILINE)
-                new = new.replace("{语气}", "")
-                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (new, slot))
-
-
-def _rename_constraint_to_prompt_var():
-    """一次性迁移：把提示词里的 {X约束} 占位重命名为 {X提示词}（更通用）。
-
-    覆盖 system_prompt 与 generate_slots。
-    """
-    import re
-    with conn() as c:
-        row = c.execute("SELECT body FROM system_prompt WHERE id=1").fetchone()
-        if row and "约束}" in row["body"]:
-            new = re.sub(r"\{([^{}]+)约束\}", r"{\1提示词}", row["body"])
-            c.execute("UPDATE system_prompt SET body=? WHERE id=1", (new,))
-        for r in c.execute("SELECT slot, body FROM generate_slots").fetchall():
-            if "约束}" in r["body"]:
-                new = re.sub(r"\{([^{}]+)约束\}", r"{\1提示词}", r["body"])
-                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (new, r["slot"]))
-
-
-def _migrate_review_prompt():
-    """一次性迁移：旧版综合审查 prompt（含 {candidates}）替换为三维度独立审核版。"""
-    with conn() as c:
-        row = c.execute("SELECT body FROM review_prompt WHERE id=1").fetchone()
-        if row and row["body"] == _OLD_DEFAULT_REVIEW:
-            c.execute("UPDATE review_prompt SET body=? WHERE id=1", (_DEFAULT_REVIEW,))
-
-
 # --- 定稿成品留存 ---
 
 @dataclass
-class Finalized:
-    id: int | None
-    ts: str
-    provider: str
-    input_vars: str        # JSON
-    selected_idx: int
-    text: str
+class Finalized(ReviewFields):
+    # 字段全有默认值以兼容 dataclass 继承顺序（基类 ReviewFields 字段均有默认）
+    id: int | None = None
+    ts: str = ""
+    provider: str = ""
+    input_vars: str = ""        # JSON
+    selected_idx: int = 0
+    text: str = ""
     review: str = ""
-    score: int | None = None
-    positive: str = ""
-    reverse: str = ""
-    accuracy: str = ""
 
 
 def save_finalized(provider: str, input_vars: dict, selected_idx: int, text: str,
-                   review: str = "", score: int | None = None,
-                   positive: str = "", reverse: str = "", accuracy: str = "") -> int:
-    """用户定稿时写入。text 为编辑后的最终文本；review 为审核原文，score/三维度为结构化审核结果。"""
+                   review: str = "", review_fields: ReviewFields | None = None) -> int:
+    """用户定稿时写入。text 为编辑后的最终文本；review 为审核原文，review_fields 为结构化审核结果。"""
+    rf = review_fields or ReviewFields()
     from datetime import datetime, timezone
     ts = datetime.now(timezone.utc).isoformat()
     with conn() as c:
@@ -390,7 +201,7 @@ def save_finalized(provider: str, input_vars: dict, selected_idx: int, text: str
             "INSERT INTO finalized(ts, provider, input_vars, selected_idx, text, review, score, positive, reverse, accuracy) "
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (ts, provider, json.dumps(input_vars, ensure_ascii=False), selected_idx, text, review,
-             score, positive, reverse, accuracy),
+             rf.score, rf.positive, rf.reverse, rf.accuracy),
         )
         return cur.lastrowid
 
@@ -582,46 +393,6 @@ def selection_value(selections: dict, dim_name: str) -> str:
 class ProductKnowledge:
     series: str
     body: str
-
-
-def _migrate_product_knowledge():
-    """一次性迁移：把旧 variables 表的「产品知识」全局变量迁到 product_knowledge 表并删除原变量。
-
-    迁移目标：若已有产品系列维度，取其第一个选项 value 作为默认 series；否则落到 series='A'。
-    仅在 product_knowledge 表为空时迁移，避免覆盖用户已维护内容。
-    variables 表在新版本已移除；旧库可能仍残留该表，迁移后清理。
-    """
-    with conn() as c:
-        # variables 表在新版本不再创建；旧库可能残留，确认存在再操作
-        tables = [r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='variables'").fetchall()]
-        if "variables" not in tables:
-            return
-        pk_exists = c.execute("SELECT COUNT(*) AS n FROM product_knowledge").fetchone()["n"]
-        if pk_exists > 0:
-            # 表已有内容，仅清理残留的旧变量条目
-            c.execute("DELETE FROM variables WHERE name=?", ("产品知识",))
-            return
-        row = c.execute("SELECT value FROM variables WHERE name=?", ("产品知识",)).fetchone()
-        if not row:
-            return
-        legacy_value = row["value"] or ""
-        # 取产品系列维度第一个选项 value 作为迁移 series
-        series = "A"
-        drow = c.execute("SELECT id FROM option_dimensions WHERE name=?", ("产品系列",)).fetchone()
-        if drow:
-            first = c.execute(
-                "SELECT value, label FROM option_choices WHERE dimension_id=? ORDER BY id LIMIT 1",
-                (drow["id"],),
-            ).fetchone()
-            if first:
-                series = first["value"] or first["label"] or "A"
-        if legacy_value.strip():
-            c.execute(
-                "INSERT INTO product_knowledge(series, body) VALUES (?,?) "
-                "ON CONFLICT(series) DO UPDATE SET body=excluded.body",
-                (series, legacy_value),
-            )
-        c.execute("DELETE FROM variables WHERE name=?", ("产品知识",))
 
 
 def _seed_product_knowledge():

@@ -5,6 +5,7 @@ export type Slot = { slot: number; name: string; body: string; temperature: numb
 export type Choice = { id: number; dimension_id: number; label: string; value: string; prompt_fragment: string }
 export type Dimension = { id: number; name: string; kind: 'value' | 'prompt'; choices: Choice[] }
 export type KnowledgeItem = { series: string; body: string }
+// 审核结果结构化字段，与后端 ReviewFields (backend/review.py) 对齐；加审核维度需同步此处 + pipeline _LABELS + FinalizeInput。
 export type CandReview = { score: number; positive: string; reverse: string; accuracy: string; raw: string }
 export type Candidate = { text: string; style?: string; review: CandReview; edited: string; finalized: boolean; reReviewing: boolean; finalizing: boolean }
 export type FinalizedItem = { id: number; ts: string; provider: string; input_vars: string; selected_idx: number; text: string; review: string; score: number | null; positive: string; reverse: string; accuracy: string }
