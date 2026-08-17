@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import type { FinalizedItem, SharedState } from '../types'
+import { copyText } from '../clipboard'
 
 // ============ 历史页 ============
 
 export function HistoryPage({ s }: { s: SharedState }) {
   const [items, setItems] = useState<FinalizedItem[]>([])
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
+  const [copiedId, setCopiedId] = useState<number | null>(null)
 
   async function load() { setItems(await (await fetch('/finalized')).json()) }
   useEffect(() => { load() }, [])
@@ -16,7 +18,11 @@ export function HistoryPage({ s }: { s: SharedState }) {
     if (!confirm('确定删除这条定稿？')) return
     await fetch(`/finalized/${id}`, { method: 'DELETE' }); load()
   }
-  function copy(text: string) { navigator.clipboard.writeText(text); alert('已复制') }
+  function copy(id: number, text: string) {
+    copyText(text).then((ok) => {
+      if (ok) { setCopiedId(id); setTimeout(() => setCopiedId(null), 1500) }
+    })
+  }
 
   function fmtTs(ts: string) {
     try { return new Date(ts).toLocaleString('zh-CN') } catch { return ts }
@@ -40,7 +46,7 @@ export function HistoryPage({ s }: { s: SharedState }) {
             <div className="item-meta">输入：{fmtInputs(it.input_vars)}</div>
             <div className="copy-preview" style={{ marginTop: 8, maxHeight: expanded[it.id] ? 'none' : 100, overflow: 'hidden' }}>{it.text}</div>
             <div className="btn-row" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
-              <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => copy(it.text)}>📋 复制</button>
+              <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => copy(it.id, it.text)}>{copiedId === it.id ? '✓ 已复制' : '📋 复制'}</button>
               <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => setExpanded({ ...expanded, [it.id]: !expanded[it.id] })}>{expanded[it.id] ? '收起' : '展开全文'}</button>
             </div>
             {(it.score != null || it.positive || it.reverse || it.accuracy || it.review) && (

@@ -10,6 +10,7 @@ from .prompts import (
     _DEFAULT_SLOTS, _OLD_DEFAULT_SLOTS, _OLD_EN_SLOTS,
     _DEFAULT_REVIEW, _OLD_DEFAULT_REVIEW,
     _DEFAULT_SYSTEM, _OLD_EN_SYSTEM, _OLD_ZH_SYSTEM_WITH_TONE,
+    _OLD_PRE_LAYERING_SLOTS, _OLD_PRE_LAYERING_SYSTEM,
 )
 
 
@@ -164,3 +165,23 @@ def _migrate_product_knowledge():
                 (series, legacy_value),
             )
         c.execute("DELETE FROM variables WHERE name=?", ("产品知识",))
+
+
+def _migrate_prompt_layering():
+    """一次性迁移：把分层前的旧默认 system/slot 迁移到新版分层结构。
+
+    - system_prompt：body == _OLD_PRE_LAYERING_SYSTEM → 替换为新 _DEFAULT_SYSTEM
+    - generate_slots：每个 slot body 若等于 _OLD_PRE_LAYERING_SLOTS[idx] → 替换为新 _DEFAULT_SLOTS[idx]
+    - 用户自定义（不等于旧默认）的保留不动
+    幂等：已是新版则不匹配旧默认，跳过。
+    """
+    with conn() as c:
+        row = c.execute("SELECT body FROM system_prompt WHERE id=1").fetchone()
+        if row and row["body"] == _OLD_PRE_LAYERING_SYSTEM:
+            c.execute("UPDATE system_prompt SET body=? WHERE id=1", (_DEFAULT_SYSTEM,))
+        slots = c.execute("SELECT slot, body FROM generate_slots ORDER BY slot").fetchall()
+        for r in slots:
+            slot, body = r["slot"], r["body"]
+            if 0 <= slot < len(_OLD_PRE_LAYERING_SLOTS) and body == _OLD_PRE_LAYERING_SLOTS[slot]:
+                new_body = _DEFAULT_SLOTS[slot][1]
+                c.execute("UPDATE generate_slots SET body=? WHERE slot=?", (new_body, slot))

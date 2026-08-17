@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { GenerateLogic } from '../../logic/useGenerateLogic'
 import { copyText } from '../../clipboard'
 
@@ -5,6 +6,7 @@ import { copyText } from '../../clipboard'
 // 纯渲染，接收 logic 对象解构使用，无逻辑。className 对应 App.css。
 
 export function ClassicGenerateView({ logic }: { logic: GenerateLogic }) {
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const {
     candidates, status, loading, error, stage, failureDetail,
     genProvider, setGenProvider, extraInputs, setExtraInputs,
@@ -140,7 +142,9 @@ export function ClassicGenerateView({ logic }: { logic: GenerateLogic }) {
               </div>
               )}
               <div className="btn-row" style={{ justifyContent: 'flex-start' }}>
-                <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => copyText(c.edited).then((ok) => ok ? alert('已复制') : alert('复制失败，请手动选中复制'))}>📋 复制</button>
+                <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => copyText(c.edited).then((ok) => {
+                  if (ok) { setCopiedIdx(i); setTimeout(() => setCopiedIdx(null), 1500) }
+                })}>{copiedIdx === i ? '✓ 已复制' : '📋 复制'}</button>
                 <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => reReviewOne(i)} disabled={c.reReviewing}>{c.reReviewing ? '审核中…' : '🔄 重新审核'}</button>
                 <button className="btn btn-success" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => doFinalize(i)} disabled={c.finalizing || c.finalized}>{c.finalized ? '✓ 已定稿' : c.finalizing ? '保存中…' : '✅ 定稿'}</button>
               </div>

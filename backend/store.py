@@ -15,7 +15,7 @@ from .migrations import (
     _ensure_slot_name_column, _ensure_finalized_review_columns,
     _migrate_default_slots, _migrate_brand_tone_placeholders,
     _strip_tone_from_slots_and_system, _rename_constraint_to_prompt_var,
-    _migrate_review_prompt, _migrate_product_knowledge,
+    _migrate_review_prompt, _migrate_product_knowledge, _migrate_prompt_layering,
 )
 
 
@@ -109,6 +109,8 @@ def init_store(db_path=None):
     _migrate_review_prompt()
     # Change B：把旧「产品知识」全局变量迁移到 product_knowledge 表，并删除变量条目
     _migrate_product_knowledge()
+    # 提示词分层重构：旧默认 system/slot → 新版（人设+知识分层 + slot 带变量占位）
+    _migrate_prompt_layering()
     # 选项维度 seed
     _seed_dimensions()
     # 产品知识 seed
@@ -362,7 +364,9 @@ def selections_to_vars(selections: dict) -> dict:
         ch = next((c for c in choices if c.label == choice_label), None)
         if not ch:
             continue
-        out[dim.name] = ch.value or ch.label
+        # 注入 label（用户选的可读文本，如"至熠"），不注入 value（如"A"）。
+        # value 仅 selection_value 内部查产品知识库用，不进提示词。
+        out[dim.name] = ch.label
         if dim.kind == "prompt" and ch.prompt_fragment:
             out[dim.name + "提示词"] = ch.prompt_fragment
     return out
