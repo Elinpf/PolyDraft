@@ -275,3 +275,20 @@ code {
   padding: 8px 16px; font-size: 13px; font-weight: 600;
   box-shadow: 0 2px 8px rgba(198, 40, 40, 0.3);
 }
+
+/* 提示词检查折叠区 */
+.prompt-inspector { margin-top: 10px; }
+.prompt-inspector > summary {
+  cursor: pointer; font-size: 12px; color: var(--muted);
+  padding: 6px 0; user-select: none;
+}
+.prompt-inspector > summary:hover { color: var(--gold-dark); }
+.prompt-section { margin-bottom: 8px; }
+.prompt-label { display: block; font-size: 11px; font-weight: 700; color: var(--gold-dark); margin-bottom: 4px; }
+.prompt-pre {
+  font-family: ui-monospace, Consolas, monospace; font-size: 11px;
+  background: rgba(180, 160, 120, 0.08); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px;
+  white-space: pre-wrap; word-break: break-word; line-height: 1.7;
+  max-height: 320px; overflow-y: auto;
+}

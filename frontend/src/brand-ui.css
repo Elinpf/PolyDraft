@@ -390,3 +390,27 @@
   .brand-stepper .bs-label { display: none; }
   .brand-mark .brand-sub { display: none; }
 }
+
+/* 提示词检查折叠区（新版） */
+.brand-prompt-inspector { margin-top: 14px; }
+.brand-prompt-inspector > summary {
+  cursor: pointer; font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--b-muted); padding: 6px 0; user-select: none;
+  list-style: none;
+}
+.brand-prompt-inspector > summary::-webkit-details-marker { display: none; }
+.brand-prompt-inspector > summary::before { content: '▸ '; }
+.brand-prompt-inspector[open] > summary::before { content: '▾ '; }
+.brand-prompt-inspector > summary:hover { color: var(--b-accent-soft); }
+.brand-prompt-section { margin-bottom: 10px; }
+.brand-prompt-label {
+  display: block; font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+  font-weight: 600; color: var(--b-accent-soft); margin-bottom: 5px;
+}
+.brand-prompt-pre {
+  font-family: var(--b-font-mono); font-size: 11px;
+  background: rgba(0, 0, 0, 0.18); border: 1px solid var(--b-glass-border);
+  border-radius: 10px; padding: 12px 14px; color: var(--b-ink-2);
+  white-space: pre-wrap; word-break: break-word; line-height: 1.7;
+  max-height: 320px; overflow-y: auto;
+}

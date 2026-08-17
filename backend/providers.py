@@ -134,7 +134,8 @@ class LLMProvider:
         # 代理已在模块加载时清掉（见文件顶部），这里直连模型端点
         self.client = AsyncOpenAI(base_url=cfg.base_url, api_key=key)
 
-    async def complete(self, prompt: str, variables: dict, temperature: float = 0.7, system: str | None = None) -> str:
+    async def complete(self, prompt: str, variables: dict, temperature: float = 0.7, system: str | None = None) -> tuple[str, list[dict]]:
+        """调用模型，返回 (模型文本, 实际发送的 messages)。messages 含渲染后的 system+user，供排错查看。"""
         rendered = _render(prompt, variables)
         messages = []
         if system:
@@ -149,10 +150,10 @@ class LLMProvider:
             )
             log_call(self.cfg.name, True, int((time.perf_counter() - start) * 1000),
                      messages=messages, model=self.cfg.model)
-            return resp.choices[0].message.content
+            return resp.choices[0].message.content, messages
         except Exception as e:
             log_call(self.cfg.name, False, int((time.perf_counter() - start) * 1000), str(e),
-                     messages=messages, model=self.cfg.model)
+                     messages=messages, model=self.cfg)
             raise
 
     async def ping(self) -> bool:

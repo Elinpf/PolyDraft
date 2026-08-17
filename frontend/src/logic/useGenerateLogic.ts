@@ -99,6 +99,7 @@ export function useGenerateLogic(s: SharedState) {
           } else {
             const cs: Candidate[] = (e.candidates || []).map((c: any) => ({
               text: c.text, style: c.style, review: c.review, edited: c.text, finalized: false, reReviewing: false, finalizing: false,
+              prompts: c.prompts,
             }))
             setCandidates(cs); setStage('done'); setStatus('')
           }

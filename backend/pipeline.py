@@ -111,19 +111,19 @@ async def run(gen_input: GenerateInput, provider: LLMProvider):
     # temperature 对产品隐藏，后端固定 1（兼容 kimi-for-coding 等仅允许 1 的模型）
     async def _run_one(idx: int, sl):
         try:
-            text = await provider.complete(sl.body, vars_ctx, 1.0, system=system)
-            return idx, sl.slot, sl.name or f"风格 {sl.slot}", text, None
+            text, messages = await provider.complete(sl.body, vars_ctx, 1.0, system=system)
+            return idx, sl.slot, sl.name or f"风格 {sl.slot}", text, messages, None
         except Exception as e:
-            return idx, sl.slot, sl.name or f"风格 {sl.slot}", None, str(e)
+            return idx, sl.slot, sl.name or f"风格 {sl.slot}", None, None, str(e)
 
     task_list = [asyncio.create_task(_run_one(i, sl)) for i, sl in enumerate(slots)]
-    drafts: list[tuple[int, str, str]] = []   # (idx, style_name, text)
+    drafts: list[tuple[int, str, str, list[dict]]] = []   # (idx, style_name, text, messages)
     failures: list[dict] = []
     done = 0
     for t in asyncio.as_completed(task_list):
-        idx, slot_no, style_name, text, err = await t
+        idx, slot_no, style_name, text, messages, err = await t
         if text is not None:
-            drafts.append((idx, style_name, text))
+            drafts.append((idx, style_name, text, messages or []))
         else:
             failures.append({"slot": slot_no, "error": err})
         done += 1
@@ -138,8 +138,9 @@ async def run(gen_input: GenerateInput, provider: LLMProvider):
 
     # 审核阶段：每份候选独立审核，并行
     drafts.sort(key=lambda x: x[0])
-    candidates_text = [t for _, _, t in drafts]
-    candidates_style = [n for _, n, _ in drafts]
+    candidates_text = [t for _, _, t, _ in drafts]
+    candidates_style = [n for _, n, _, _ in drafts]
+    candidates_msgs = [m for _, _, _, m in drafts]
 
     log_operation("pipeline", "generate", 0, 0, "start reviewing")
     yield {"type": "stage", "stage": "reviewing", "total": len(candidates_text)}
@@ -149,7 +150,7 @@ async def run(gen_input: GenerateInput, provider: LLMProvider):
     async def _review_one(i: int, cand_text: str):
         try:
             rvars = {**vars_ctx, "candidate": cand_text}
-            raw = await provider.complete(review_prompt, rvars, 1.0, system=system)
+            raw, _ = await provider.complete(review_prompt, rvars, 1.0, system=system)
             return i, _parse_review(raw)
         except Exception as e:
             return i, ReviewResult(raw=f"审核失败：{e}")
@@ -164,9 +165,19 @@ async def run(gen_input: GenerateInput, provider: LLMProvider):
         r_done += 1
         yield {"type": "review_progress", "done": r_done, "total": r_total}
 
+    def _extract_prompts(messages: list[dict]) -> dict:
+        out = {"system": "", "user": ""}
+        for m in messages:
+            if m.get("role") == "system":
+                out["system"] = m.get("content", "")
+            elif m.get("role") == "user":
+                out["user"] = m.get("content", "")
+        return out
+
     candidates = [
         {"text": candidates_text[i], "style": candidates_style[i],
-         "review": (reviews[i] or ReviewResult()).to_dict()}
+         "review": (reviews[i] or ReviewResult()).to_dict(),
+         "prompts": _extract_prompts(candidates_msgs[i])}
         for i in range(len(candidates_text))
     ]
 
@@ -182,6 +193,6 @@ async def re_review(text: str, input_vars: dict, selections: dict, provider: LLM
     system = _system_or_none()
     review_prompt = get_review_prompt().body
     rvars = {**vars_ctx, "candidate": text}
-    raw = await provider.complete(review_prompt, rvars, 1.0, system=system)
+    raw, _ = await provider.complete(review_prompt, rvars, 1.0, system=system)
     log_generation("re_review", provider.cfg.name, input_vars, [text], raw)
     return _parse_review(raw)

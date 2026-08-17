@@ -1,4 +1,5 @@
 import type { GenerateLogic } from '../../logic/useGenerateLogic'
+import { copyText } from '../../clipboard'
 
 // ============ 经典版生成页视图 ============
 // 纯渲染，接收 logic 对象解构使用，无逻辑。className 对应 App.css。
@@ -139,10 +140,17 @@ export function ClassicGenerateView({ logic }: { logic: GenerateLogic }) {
               </div>
               )}
               <div className="btn-row" style={{ justifyContent: 'flex-start' }}>
-                <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => navigator.clipboard.writeText(c.edited)}>📋 复制</button>
+                <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => copyText(c.edited).then((ok) => ok ? alert('已复制') : alert('复制失败，请手动选中复制'))}>📋 复制</button>
                 <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => reReviewOne(i)} disabled={c.reReviewing}>{c.reReviewing ? '审核中…' : '🔄 重新审核'}</button>
                 <button className="btn btn-success" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => doFinalize(i)} disabled={c.finalizing || c.finalized}>{c.finalized ? '✓ 已定稿' : c.finalizing ? '保存中…' : '✅ 定稿'}</button>
               </div>
+              {c.prompts && (
+                <details className="prompt-inspector">
+                  <summary>查看提示词</summary>
+                  <div className="prompt-section"><span className="prompt-label">System</span><pre className="prompt-pre">{c.prompts.system || '(无)'}</pre></div>
+                  <div className="prompt-section"><span className="prompt-label">User</span><pre className="prompt-pre">{c.prompts.user}</pre></div>
+                </details>
+              )}
             </div>
             )
           })}
