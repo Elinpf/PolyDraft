@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import type { Page, SharedState } from './types'
 import { GeneratePage } from './pages/generate'
@@ -11,6 +11,43 @@ import { DocsPage } from './pages/docs'
 import { BrandApp } from './brand/BrandApp'
 import './brand-ui.css'
 
+// ============ 后端健康检查 ============
+// 启动 + 每 15s 探一次 /health，失败显示顶部横条提示。经典版/新版都覆盖。
+
+function useBackendHealth() {
+  const [down, setDown] = useState(false)
+  useEffect(() => {
+    let alive = true
+    const check = async () => {
+      try {
+        const r = await fetch('/health', { cache: 'no-store' })
+        if (!alive) return
+        setDown(!r.ok)
+      } catch {
+        if (alive) setDown(true)
+      }
+    }
+    check()
+    const id = setInterval(check, 15000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
+  return down
+}
+
+function BackendDownBanner() {
+  return (
+    <div style={{
+      position: 'sticky', top: 0, zIndex: 999,
+      background: 'linear-gradient(90deg, #c62828, #d97070)',
+      color: '#fff', textAlign: 'center',
+      padding: '8px 16px', fontSize: 13, fontWeight: 600,
+      boxShadow: '0 2px 8px rgba(198,40,40,0.3)',
+    }}>
+      ⚠️ 后端服务未响应，数据无法加载。请检查后端是否启动（端口 8099）。
+    </div>
+  )
+}
+
 // ============ App ============
 
 // /new 路由走品牌高级感探索版（独立样式 + 组件，不影响经典版）
@@ -21,6 +58,7 @@ function useIsBrandRoute() {
 
 function App() {
   const isBrand = useIsBrandRoute()
+  const backendDown = useBackendHealth()
   const [page, setPage] = useState<Page>('generate')
   // 仅跨页刷新信号——单消费者状态已就地进各页面
   const [finalizeTick, setFinalizeTick] = useState(0)
@@ -31,7 +69,12 @@ function App() {
     dimsTick, bumpDimsTick: () => setDimsTick((n) => n + 1),
   }
 
-  if (isBrand) return <BrandApp s={shared} />
+  if (isBrand) return (
+    <>
+      {backendDown && <BackendDownBanner />}
+      <BrandApp s={shared} />
+    </>
+  )
 
   const navItems: { key: Page; label: string; icon: string }[] = [
     { key: 'generate', label: '生成', icon: '✍️' },
@@ -44,6 +87,7 @@ function App() {
 
   return (
     <div>
+      {backendDown && <BackendDownBanner />}
       <div className="topbar">
         <h1>🍼 文案生成引擎</h1>
         <div className="row">
