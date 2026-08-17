@@ -133,9 +133,6 @@ export function BrandGenerateView({ logic }: { logic: GenerateLogic }) {
             <span className="bp-tag">{candidates.length} 份</span>
           </div>
           <p className="brand-panel-sub">每份候选文案独立审核（综合打分 + 正向亲和 / 反向亲和 / 产品知识准确性）。可编辑后单份重审，逐份定稿保留。重新生成在同风格下累加新版本，左右切换对比。</p>
-          <div className="brand-btn-row" style={{ justifyContent: 'flex-start', marginBottom: 12 }}>
-            <button className="brand-btn brand-btn-primary" onClick={regenerateAll} disabled={regenerating}>{regenerating ? '重新生成中…' : '重新生成全部'}</button>
-          </div>
           {candidates.map((c, i) => {
             const v = c.versions[c.active]
             const reviewed = !!v.review.raw
@@ -188,6 +185,7 @@ export function BrandGenerateView({ logic }: { logic: GenerateLogic }) {
           })}
           <div className="brand-btn-row">
             <button className="brand-btn brand-btn-ghost" onClick={changeInput}>← 改输入</button>
+            <button className="brand-btn brand-btn-primary" onClick={regenerateAll} disabled={regenerating}>{regenerating ? '重新生成中…' : '重新生成全部'}</button>
           </div>
         </div>
       )}
