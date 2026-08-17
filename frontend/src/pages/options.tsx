@@ -7,7 +7,6 @@ export function OptionsPage({ s }: { s: SharedState }) {
   const [dims, setDims] = useState<Dimension[]>([])
   const [newName, setNewName] = useState('')
   const [newKind, setNewKind] = useState<'value' | 'prompt'>('value')
-  const [saving, setSaving] = useState(false)
 
   async function load() {
     setDims(await (await fetch('/dimensions')).json())
@@ -39,22 +38,18 @@ export function OptionsPage({ s }: { s: SharedState }) {
       : d)))
   }
 
-  // 保存：把所有维度的改动批量提交（维度本身 + 其下选项）
-  async function saveAll() {
-    setSaving(true)
+  // 保存单个维度（维度本身 + 其下所有选项），返回是否全部成功
+  async function saveDim(d: Dimension): Promise<boolean> {
     const errs: string[] = []
-    for (const d of dims) {
-      const r = await fetch(`/dimensions/${d.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: d.name, kind: d.kind }) })
-      if (!r.ok) { const dd = await r.json(); errs.push(`维度「${d.name}」：${dd.detail || '失败'}`) }
-      for (const c of d.choices) {
-        const rc = await fetch(`/choices/${c.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: c.label, value: c.value, prompt_fragment: c.prompt_fragment }) })
-        if (!rc.ok) { const dc = await rc.json(); errs.push(`选项「${c.label}」：${dc.detail || '失败'}`) }
-      }
+    const r = await fetch(`/dimensions/${d.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: d.name, kind: d.kind }) })
+    if (!r.ok) { const dd = await r.json(); errs.push(`维度「${d.name}」：${dd.detail || '失败'}`) }
+    for (const c of d.choices) {
+      const rc = await fetch(`/choices/${c.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: c.label, value: c.value, prompt_fragment: c.prompt_fragment }) })
+      if (!rc.ok) { const dc = await rc.json(); errs.push(`选项「${c.label}」：${dc.detail || '失败'}`) }
     }
-    setSaving(false)
-    if (errs.length) alert('部分保存失败：\n' + errs.join('\n'))
-    else alert('已保存')
+    if (errs.length) { console.error('保存失败', errs); return false }
     load(); s.bumpDimsTick()
+    return true
   }
 
   return (
@@ -76,13 +71,12 @@ export function OptionsPage({ s }: { s: SharedState }) {
         </div>
         <div className="btn-row" style={{ justifyContent: 'flex-start' }}>
           <button className="btn btn-success" onClick={addDim}>➕ 新增维度</button>
-          {dims.length > 0 && <button className="btn btn-primary" onClick={saveAll} disabled={saving}>{saving ? '保存中…' : '💾 保存全部'}</button>}
         </div>
       </div>
 
       {dims.map((d) => (
         <DimPanel key={d.id} d={d} patchDim={patchDim} patchChoice={patchChoice}
-          delDim={delDim} delChoice={delChoice} onAddChoice={async (label, value, frag) => {
+          delDim={delDim} delChoice={delChoice} saveDim={saveDim} onAddChoice={async (label, value, frag) => {
             if (!label.trim()) return alert('选项名不能为空')
             const r = await fetch(`/dimensions/${d.id}/choices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, value, prompt_fragment: frag }) })
             if (!r.ok) { const dd = await r.json(); return alert(dd.detail || '失败') }
@@ -93,15 +87,29 @@ export function OptionsPage({ s }: { s: SharedState }) {
   )
 }
 
-function DimPanel({ d, patchDim, patchChoice, delDim, delChoice, onAddChoice }: {
+function DimPanel({ d, patchDim, patchChoice, delDim, delChoice, saveDim, onAddChoice }: {
   d: Dimension
   patchDim: (id: number, p: Partial<Dimension>) => void
   patchChoice: (dimId: number, choiceId: number, p: Partial<Choice>) => void
   delDim: (d: Dimension) => void
   delChoice: (d: Dimension, c: Choice) => void
+  saveDim: (d: Dimension) => Promise<boolean>
   onAddChoice: (label: string, value: string, frag: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle')
+  async function handleSave() {
+    setSaveState('saving')
+    const ok = await saveDim(d)
+    if (ok) {
+      setSaveState('done')
+      setTimeout(() => setSaveState('idle'), 1500)
+    } else {
+      setSaveState('error')
+      setTimeout(() => setSaveState('idle'), 2000)
+    }
+  }
+  const saveLabel = saveState === 'saving' ? '保存中…' : saveState === 'done' ? '✓ 已保存' : saveState === 'error' ? '保存失败' : '💾 保存'
   return (
     <div className="panel">
       <div className="panel-header" style={{ cursor: 'pointer' }} onClick={() => setOpen((o) => !o)}>
@@ -119,6 +127,7 @@ function DimPanel({ d, patchDim, patchChoice, delDim, delChoice, onAddChoice }: 
               </select>
             </div>
             <button className="btn btn-danger" onClick={() => delDim(d)}>🗑️ 删除维度</button>
+            <button className={'btn ' + (saveState === 'done' ? 'btn-success' : saveState === 'error' ? 'btn-danger' : 'btn-primary')} onClick={handleSave} disabled={saveState === 'saving'}>{saveLabel}</button>
           </div>
 
           <h3 style={{ fontSize: 13, margin: '14px 0 8px', color: 'var(--text-secondary)' }}>选项列表</h3>

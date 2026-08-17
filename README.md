@@ -38,6 +38,15 @@
 
 模型不绑定特定厂商：只要是 OpenAI 兼容的 `/v1/chat/completions` 端点都能接（Kimi、vLLM、智谱 GLM、本地 Ollama 等）。
 
+### 主题与界面
+
+前端做了 **逻辑/视图分离**：业务状态与 IO 收敛在 `logic/`（无 JSX），渲染层按主题切分在 `views/<theme>/`（纯渲染组件）。两套主题并存，按 `localStorage` 偏好（`copygen_theme`）切换，URL 不变：
+
+- **classic**（默认）：经典实用风，顶部标签栏。
+- **brand**（品牌高级感）：浅暖底 + 半透白磨砂玻璃卡 + 莫兰迪棕左侧文字侧栏，访问 `/new` 可一键切到该主题。
+
+> 仅生成页迁移到了双主题视图；其余页面复用 `pages/` 经典组件，主题切换对其无影响。
+
 ---
 
 ## 项目结构
@@ -45,11 +54,11 @@
 ```
 atm/
 ├── backend/
-│   ├── app.py              # FastAPI 入口 + 路由（30 个）
+│   ├── app.py              # FastAPI 入口 + 路由（28 个）
 │   ├── pipeline.py         # 生成/审核流水线（async generator + SSE 事件）
 │   ├── providers.py        # 模型接入层（AsyncOpenAI 客户端 + 配置 CRUD）
 │   ├── store.py            # 数据层 CRUD + init_store 编排 + dataclass
-│   ├── prompts.py           # 提示词模板与 seed 常量
+│   ├── prompts.py          # 提示词模板与 seed 常量
 │   ├── migrations.py       # 一次性数据库迁移函数
 │   ├── review.py           # 审核结果字段真相源（ReviewFields）
 │   ├── db.py               # SQLite 连接器 + 日志表 schema
@@ -58,14 +67,21 @@ atm/
 │   └── middleware.py       # 请求日志中间件
 ├── frontend/
 │   ├── src/
-│   │   ├── App.tsx         # 路由 + 常驻挂载渲染
+│   │   ├── App.tsx         # 路由 + 常驻挂载 + 主题壳 + 后端健康检查
+│   │   ├── theme.tsx       # 主题机制（偏好切换，classic / brand）
+│   │   ├── nav.ts          # 共享导航项常量
+│   │   ├── clipboard.ts    # 复制工具（非安全上下文 fallback）
 │   │   ├── types.ts        # 跨页类型
-│   │   └── pages/          # 7 个页面（generate/slots/options/knowledge/history/config/docs）
-│   ├── vite.config.ts      # dev 代理 /api → 后端 8099
+│   │   ├── logic/          # 无 JSX 的业务逻辑（useGenerateLogic 等状态 + IO）
+│   │   ├── views/          # 主题视图（纯渲染）：classic/ + brand/
+│   │   ├── brand/BrandApp.tsx  # 品牌高级感 UI 壳（左侧文字侧栏）
+│   │   ├── pages/          # 7 个页面入口（generate/slots/options/knowledge/history/config/docs）
+│   │   ├── App.css / brand-ui.css / index.css   # 样式
+│   ├── vite.config.ts      # dev 代理 /providers /generate … → 后端 8099
 │   └── package.json
 ├── copygen.db              # SQLite 数据文件（运行时生成，gitignore）
 ├── requirements.txt        # Python 依赖
-└── docs/                   # 文档
+└── openspec/               # 变更管理（openspec/changes/）
 ```
 
 ---
@@ -140,7 +156,7 @@ cd frontend
 npm run dev
 ```
 
-浏览器打开 **http://localhost:5173** 即可。前端 dev server 已配置代理，`/api`、`/providers`、`/generate` 等请求会转发到 `http://localhost:8099`。
+浏览器打开 **http://localhost:5173** 即可。前端 dev server 已配置代理，`/providers`、`/generate`、`/slots`、`/prompts`、`/dimensions`、`/product-knowledge`、`/extra-inputs` 等请求会转发到 `http://localhost:8099`。
 
 > 首次启动会自动建表并写入默认风格槽位、提示词、选项维度、产品知识 seed。
 
@@ -203,8 +219,9 @@ python -m uvicorn backend.app:app --host 0.0.0.0 --port 8099
 
 ## 数据与备份
 
-- 所有数据在 `copygen.db`（SQLite 单文件），包含 provider 配置（**含 api_key 明文**）、提示词、维度、产品知识、定稿记录、调用日志。
+- 所有数据在 `copygen.db`（SQLite 单文件），包含 provider 配置（**含 api_key 明文**）、提示词、维度、产品知识、补充输入、定稿记录、调用日志。
 - **备份**：直接复制 `copygen.db` 即可。
+- **补充输入**：生成页的"补充输入"（品牌等自定义变量）持久化在后端 `/extra-inputs`，跨设备同步；首次访问时若后端为空会自动把旧 `localStorage` 数据迁上去并清本地。
 - **敏感信息**：`copygen.db` 不入库（`.gitignore` 已排除）；provider 的 api_key 明文存储，适合单机单人部署，**勿用于公网多用户场景**。
 
 ---
@@ -212,8 +229,8 @@ python -m uvicorn backend.app:app --host 0.0.0.0 --port 8099
 ## 开发说明
 
 - 后端无 Web 框架脚手架，纯 FastAPI 路由 + 函数式数据层；数据库迁移为一次性函数（`backend/migrations.py`），启动时由 `init_store` 幂等执行。
-- 前端页面常驻挂载（`display` 切换不卸载），保留生成页 SSE reader 与表单状态，切 tab 不丢。
-- 项目用 OpenSpec 管理变更（`openspec/changes/`），架构决策记录在 `docs/adr/`。
+- 前端业务逻辑收敛在 `logic/`（无 JSX、可独立测试），渲染按主题切分在 `views/<theme>/`；页面常驻挂载（`display` 切换不卸载），保留生成页 SSE reader 与表单状态，切 tab 不丢。
+- 项目用 OpenSpec 管理变更（`openspec/changes/`）。
 - 域名语言见 `CLAUDE.md` / `docs/agents/`。
 
 ## License

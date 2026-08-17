@@ -13,13 +13,14 @@ from .providers import (init_providers, list_providers, save_provider, get_provi
 from .store import (init_store, list_slots, save_slot, delete_slot,
                     get_review_prompt, save_review_prompt, GenSlot,
                     get_system_prompt, save_system_prompt,
+                    get_extra_inputs, save_extra_inputs,
                     save_finalized, list_finalized, delete_finalized, Finalized,
                     list_dimensions, get_dimension, save_dimension, update_dimension,
                     delete_dimension, list_choices, save_choice, update_choice,
                     delete_choice, OptionDimension, OptionChoice,
                     list_product_knowledge, save_product_knowledge,
                     delete_product_knowledge, ProductKnowledge)
-from .pipeline import GenerateInput, run, re_review
+from .pipeline import GenerateInput, run, re_review, generate_one
 from .review import ReviewFields
 setup_logging()
 init_db()
@@ -99,6 +100,19 @@ async def get_sys():
 @app.post("/prompts/system")
 async def save_sys(body: str):
     save_system_prompt(body)
+    return {"ok": True}
+
+
+# --- 补充输入（生成页变量，后端持久化） ---
+
+@app.get("/extra-inputs")
+async def get_extra():
+    return get_extra_inputs()
+
+
+@app.post("/extra-inputs")
+async def save_extra(data: dict):
+    save_extra_inputs(data)
     return {"ok": True}
 
 
@@ -237,6 +251,28 @@ async def re_review_endpoint(req: ReReviewInput):
     except Exception as e:
         raise HTTPException(400, f"review failed: {e}")
     return {"review": result.to_dict()}
+
+
+class GenerateOneInput(BaseModel):
+    slot: int
+    input_vars: dict = {}
+    selections: dict = {}
+    provider_name: str = "kimi"
+
+
+@app.post("/generate-one")
+async def generate_one_endpoint(req: GenerateOneInput):
+    """单槽位重新生成 + 自动审核，返回单份 candidate（text/style/review/prompts/slot）。"""
+    cfg = get_provider(req.provider_name)
+    if not cfg:
+        raise HTTPException(400, f"provider {req.provider_name} not configured")
+    try:
+        result = await generate_one(req.slot, req.input_vars, req.selections, LLMProvider(cfg))
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        raise HTTPException(400, f"generate_one failed: {e}")
+    return result
 
 
 # --- 定稿留存 (finalized) ---

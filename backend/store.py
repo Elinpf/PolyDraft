@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS system_prompt (
     id    INTEGER PRIMARY KEY CHECK (id = 1),
     body  TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS extra_inputs (
+    id    INTEGER PRIMARY KEY CHECK (id = 1),
+    body  TEXT NOT NULL   -- JSON: {变量名: 值}
+);
 CREATE TABLE IF NOT EXISTS finalized (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     ts          TEXT NOT NULL,
@@ -115,6 +119,8 @@ def init_store(db_path=None):
     _seed_dimensions()
     # 产品知识 seed
     _seed_product_knowledge()
+    # 补充输入 seed（默认 品牌=爱他美）
+    _seed_extra_inputs()
 
 
 # --- slots ---
@@ -175,6 +181,30 @@ def save_system_prompt(body: str):
             "INSERT INTO system_prompt(id, body) VALUES (1,?) "
             "ON CONFLICT(id) DO UPDATE SET body=excluded.body",
             (body,),
+        )
+
+
+# --- 补充输入（生成页变量，后端持久化，跨设备同步）---
+
+def get_extra_inputs() -> dict:
+    """读取补充输入（变量名→值）。表无记录返回空 dict。"""
+    with conn() as c:
+        row = c.execute("SELECT body FROM extra_inputs WHERE id=1").fetchone()
+        if not row:
+            return {}
+        try:
+            return json.loads(row["body"])
+        except Exception:
+            return {}
+
+
+def save_extra_inputs(data: dict):
+    """整体覆盖写入补充输入。"""
+    with conn() as c:
+        c.execute(
+            "INSERT INTO extra_inputs(id, body) VALUES (1,?) "
+            "ON CONFLICT(id) DO UPDATE SET body=excluded.body",
+            (json.dumps(data or {}, ensure_ascii=False),),
         )
 
 
@@ -406,6 +436,17 @@ def _seed_product_knowledge():
             c.execute(
                 "INSERT OR IGNORE INTO product_knowledge(series, body) VALUES (?,?)",
                 (series, body),
+            )
+
+
+def _seed_extra_inputs():
+    """启动时 seed 默认补充输入（品牌=爱他美）；表已有记录则不覆盖。"""
+    with conn() as c:
+        cnt = c.execute("SELECT COUNT(*) AS n FROM extra_inputs").fetchone()["n"]
+        if cnt == 0:
+            c.execute(
+                "INSERT INTO extra_inputs(id, body) VALUES (1,?)",
+                (json.dumps({"品牌": "爱他美"}, ensure_ascii=False),),
             )
 
 
