@@ -34,6 +34,7 @@ export function BrandApp({ page, setPage, children }: {
 
       <main className="brand-main">
         {children}
+        <footer className="brand-footer">© {new Date().getFullYear()} PolyDraft · 基于 AGPL-3.0 开源</footer>
       </main>
     </div>
   )

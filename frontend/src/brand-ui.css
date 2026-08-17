@@ -126,6 +126,7 @@
 /* ===== 主区 ===== */
 .brand-main { flex: 1; min-width: 0; }
 .brand-container { max-width: 920px; margin: 0 auto; padding: 36px 44px 80px; }
+.brand-footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--b-glass-border); text-align: center; font-size: 12px; color: var(--b-muted); }
 
 /* ===== 步骤条 ===== */
 .brand-stepper {
