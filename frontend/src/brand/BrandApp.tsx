@@ -1,22 +1,25 @@
-import { useState } from 'react'
-import type { Page, SharedState } from '../types'
-import { BrandGeneratePage } from './GeneratePage'
+import { type ReactNode } from 'react'
+import type { Page } from '../types'
+import { NAV_ITEMS } from '../nav'
+import { useTheme } from '../theme'
 
-// ============ 干净清新高级感 · App 壳 ============
-// /new 路由下挂载。左侧常驻文字侧栏 + 主区单栏线性内容流。
-// 复用 App 传来的 SharedState。仅生成页做了新版设计，其余页面待迁移。
+// ============ 品牌高级感 · App 壳 ============
+// 左侧常驻文字侧栏 + 主区单栏线性内容流。
+// page 状态由 App 持有（与主区内容一致），侧栏导航调 App 的 setPage。
+// 主区内容由 App 传入（children）——统一走 pages/* 入口 + 主题 View。
 
-export function BrandApp({ s }: { s: SharedState }) {
-  const [page, setPage] = useState<Page>('generate')
+export function BrandApp({ page, setPage, children }: {
+  page: Page
+  setPage: (p: Page) => void
+  children: ReactNode
+}) {
+  const { setTheme } = useTheme()
 
-  const navItems: { key: Page; label: string; icon: string }[] = [
-    { key: 'generate', label: '生成', icon: '✎' },
-    { key: 'slots', label: '文案风格', icon: '◈' },
-    { key: 'options', label: '选项配置', icon: '▤' },
-    { key: 'knowledge', label: '产品知识', icon: '◇' },
-    { key: 'history', label: '历史', icon: '⌛' },
-    { key: 'config', label: '模型配置', icon: '◯' },
-  ]
+  // 新版侧栏图标字形映射（经典版在 App.tsx 用 emoji）
+  const brandIcon: Record<string, string> = {
+    generate: '✎', slots: '◈', options: '▤',
+    knowledge: '◇', history: '⌛', config: '◯',
+  }
 
   return (
     <div className="brand-app">
@@ -29,27 +32,19 @@ export function BrandApp({ s }: { s: SharedState }) {
           </div>
         </div>
         <nav className="brand-nav">
-          {navItems.map((n) => (
+          {NAV_ITEMS.map((n) => (
             <button key={n.key} className={'brand-nav-btn' + (page === n.key ? ' active' : '')}
               onClick={() => setPage(n.key)}>
-              <span className="bn-icon">{n.icon}</span>
+              <span className="bn-icon">{brandIcon[n.key]}</span>
               {n.label}
             </button>
           ))}
         </nav>
-        <a className="brand-back-link" href="/">← 返回经典版</a>
+        <button className="brand-back-link" onClick={() => setTheme('classic')}>← 返回经典版</button>
       </aside>
 
       <main className="brand-main">
-        {page === 'generate' && <BrandGeneratePage s={s} />}
-        {page !== 'generate' && (
-          <div className="brand-container">
-            <div className="brand-empty">
-              <p>「{navItems.find((n) => n.key === page)?.label}」尚未迁移至新版</p>
-              <p style={{ marginTop: 8, fontSize: 12 }}>请在左侧切换至「生成」，或返回经典版使用该功能。</p>
-            </div>
-          </div>
-        )}
+        {children}
       </main>
     </div>
   )

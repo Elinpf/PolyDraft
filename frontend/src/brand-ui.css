@@ -42,7 +42,6 @@
   font-size: 14px;
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
   isolation: isolate;   /* 让 blob 的 z-index 不影响外部 */
 }
 
@@ -67,8 +66,8 @@
   filter: blur(50px);
 }
 
-/* 内容层 z-index 1 */
-.brand-sidebar, .brand-main { position: relative; z-index: 1; }
+/* 主区内容层 z-index 1（侧栏 sticky 自带定位，不在此覆盖） */
+.brand-main { position: relative; z-index: 1; }
 
 /* ===== 玻璃卡 mixin（手写，因为 CSS 无 mixin） ===== */
 /* 所有玻璃卡共用：半透白 + backdrop blur saturate + 白边框 + 大圆角 */
@@ -127,12 +126,16 @@
 .brand-back-link {
   margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.15);
   display: block; text-decoration: none;
-  color: rgba(245, 237, 224, 0.60); font-size: 12px;
+  color: #e8d8b8; font-size: 12px;
   padding: 12px; border-radius: 10px;
   border: 1px solid transparent;
   transition: all 0.2s;
+  background: transparent;       /* 覆盖 button 默认白底 */
+  font-family: inherit;          /* 覆盖 button 默认字体 */
+  cursor: pointer; text-align: left; width: 100%;
+  appearance: none; -webkit-appearance: none;
 }
-.brand-back-link:hover { background: rgba(255, 255, 255, 0.10); color: #f5ede0; }
+.brand-back-link:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
 
 /* ===== 主区 ===== */
 .brand-main { flex: 1; min-width: 0; }
@@ -351,10 +354,6 @@
   border-radius: 4px; padding: 0 6px; margin-left: 4px;
   font-size: 11px; font-family: var(--b-font-mono); vertical-align: middle;
 }
-
-/* 空状态 */
-.brand-empty { text-align: center; padding: 60px 20px; color: var(--b-muted); }
-.brand-empty p { font-size: 13px; }
 
 /* 代码 */
 .brand-app code {

@@ -266,3 +266,12 @@ code {
   .stepper .step { font-size: 10px; min-width: 50px; }
   .form-row { flex-direction: column; }
 }
+
+/* 后端断连横条 */
+.backend-down-banner {
+  position: sticky; top: 0; z-index: 999;
+  background: linear-gradient(90deg, #c62828, #d97070);
+  color: #fff; text-align: center;
+  padding: 8px 16px; font-size: 13px; font-weight: 600;
+  box-shadow: 0 2px 8px rgba(198, 40, 40, 0.3);
+}
