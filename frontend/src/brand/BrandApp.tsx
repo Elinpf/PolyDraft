@@ -12,12 +12,6 @@ export function BrandApp({ page, setPage, children }: {
   setPage: (p: Page) => void
   children: ReactNode
 }) {
-  // 侧栏图标字形映射
-  const brandIcon: Record<string, string> = {
-    generate: '✎', slots: '◈', options: '▤',
-    knowledge: '◇', history: '⌛', config: '◯',
-  }
-
   return (
     <div className="brand-app">
       <aside className="brand-sidebar">
@@ -32,7 +26,6 @@ export function BrandApp({ page, setPage, children }: {
           {NAV_ITEMS.map((n) => (
             <button key={n.key} className={'brand-nav-btn' + (page === n.key ? ' active' : '')}
               onClick={() => setPage(n.key)}>
-              <span className="bn-icon">{brandIcon[n.key]}</span>
               {n.label}
             </button>
           ))}
