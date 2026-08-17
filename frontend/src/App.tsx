@@ -8,10 +8,19 @@ import { OptionsPage } from './pages/options'
 import { KnowledgePage } from './pages/knowledge'
 import { HistoryPage } from './pages/history'
 import { DocsPage } from './pages/docs'
+import { BrandApp } from './brand/BrandApp'
+import './brand-ui.css'
 
 // ============ App ============
 
+// /new 路由走品牌高级感探索版（独立样式 + 组件，不影响经典版）
+function useIsBrandRoute() {
+  const [isBrand] = useState(() => typeof window !== 'undefined' && window.location.pathname.startsWith('/new'))
+  return isBrand
+}
+
 function App() {
+  const isBrand = useIsBrandRoute()
   const [page, setPage] = useState<Page>('generate')
   // 仅跨页刷新信号——单消费者状态已就地进各页面
   const [finalizeTick, setFinalizeTick] = useState(0)
@@ -21,6 +30,8 @@ function App() {
     finalizeTick, bumpFinalizeTick: () => setFinalizeTick((n) => n + 1),
     dimsTick, bumpDimsTick: () => setDimsTick((n) => n + 1),
   }
+
+  if (isBrand) return <BrandApp s={shared} />
 
   const navItems: { key: Page; label: string; icon: string }[] = [
     { key: 'generate', label: '生成', icon: '✍️' },
