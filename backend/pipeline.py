@@ -93,6 +93,16 @@ def _system_or_none() -> str | None:
         return None
 
 
+def _extract_prompts(messages: list[dict]) -> dict:
+    out = {"system": "", "user": ""}
+    for m in messages:
+        if m.get("role") == "system":
+            out["system"] = m.get("content", "")
+        elif m.get("role") == "user":
+            out["user"] = m.get("content", "")
+    return out
+
+
 async def run(gen_input: GenerateInput, provider: LLMProvider):
     """完整流水线，async generator，yield 进度事件 dict。
 
@@ -117,13 +127,13 @@ async def run(gen_input: GenerateInput, provider: LLMProvider):
             return idx, sl.slot, sl.name or f"风格 {sl.slot}", None, None, str(e)
 
     task_list = [asyncio.create_task(_run_one(i, sl)) for i, sl in enumerate(slots)]
-    drafts: list[tuple[int, str, str, list[dict]]] = []   # (idx, style_name, text, messages)
+    drafts: list[tuple[int, int, str, str, list[dict]]] = []   # (idx, slot_no, style_name, text, messages)
     failures: list[dict] = []
     done = 0
     for t in asyncio.as_completed(task_list):
         idx, slot_no, style_name, text, messages, err = await t
         if text is not None:
-            drafts.append((idx, style_name, text, messages or []))
+            drafts.append((idx, slot_no, style_name, text, messages or []))
         else:
             failures.append({"slot": slot_no, "error": err})
         done += 1
@@ -138,9 +148,10 @@ async def run(gen_input: GenerateInput, provider: LLMProvider):
 
     # 审核阶段：每份候选独立审核，并行
     drafts.sort(key=lambda x: x[0])
-    candidates_text = [t for _, _, t, _ in drafts]
-    candidates_style = [n for _, n, _, _ in drafts]
-    candidates_msgs = [m for _, _, _, m in drafts]
+    candidates_slot = [s for _, s, _, _, _ in drafts]
+    candidates_text = [t for _, _, _, t, _ in drafts]
+    candidates_style = [n for _, _, n, _, _ in drafts]
+    candidates_msgs = [m for _, _, _, _, m in drafts]
 
     log_operation("pipeline", "generate", 0, 0, "start reviewing")
     yield {"type": "stage", "stage": "reviewing", "total": len(candidates_text)}
@@ -165,17 +176,8 @@ async def run(gen_input: GenerateInput, provider: LLMProvider):
         r_done += 1
         yield {"type": "review_progress", "done": r_done, "total": r_total}
 
-    def _extract_prompts(messages: list[dict]) -> dict:
-        out = {"system": "", "user": ""}
-        for m in messages:
-            if m.get("role") == "system":
-                out["system"] = m.get("content", "")
-            elif m.get("role") == "user":
-                out["user"] = m.get("content", "")
-        return out
-
     candidates = [
-        {"text": candidates_text[i], "style": candidates_style[i],
+        {"slot": candidates_slot[i], "text": candidates_text[i], "style": candidates_style[i],
          "review": (reviews[i] or ReviewResult()).to_dict(),
          "prompts": _extract_prompts(candidates_msgs[i])}
         for i in range(len(candidates_text))
@@ -196,3 +198,25 @@ async def re_review(text: str, input_vars: dict, selections: dict, provider: LLM
     raw, _ = await provider.complete(review_prompt, rvars, 1.0, system=system)
     log_generation("re_review", provider.cfg.name, input_vars, [text], raw)
     return _parse_review(raw)
+
+
+async def generate_one(slot_no: int, input_vars: dict, selections: dict, provider: LLMProvider) -> dict:
+    """单槽位重新生成 + 自动审核，返回与 run() done 事件中单个 candidate 同形的 dict。
+
+    供前端「重新生成」调用：为一个风格槽位产出一版新候选（含审核），
+    前端把它作为该槽位的新版本追加，并支持版本间左右切换对比。
+    """
+    vars_ctx = _build_vars_ctx(input_vars, selections)
+    system = _system_or_none()
+    sl = next((s for s in list_slots() if s.slot == slot_no), None)
+    if sl is None:
+        raise KeyError(f"slot {slot_no} not found")
+    style_name = sl.name or f"风格 {sl.slot}"
+    text, messages = await provider.complete(sl.body, vars_ctx, 1.0, system=system)
+    review_prompt = get_review_prompt().body
+    rvars = {**vars_ctx, "candidate": text}
+    raw, _ = await provider.complete(review_prompt, rvars, 1.0, system=system)
+    review = _parse_review(raw)
+    log_generation("generate_one", provider.cfg.name, input_vars, [text], raw)
+    return {"slot": sl.slot, "style": style_name, "text": text,
+            "review": review.to_dict(), "prompts": _extract_prompts(messages)}

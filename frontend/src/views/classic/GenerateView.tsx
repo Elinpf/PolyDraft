@@ -8,11 +8,12 @@ import { copyText } from '../../clipboard'
 export function ClassicGenerateView({ logic }: { logic: GenerateLogic }) {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const {
-    candidates, status, loading, error, stage, failureDetail,
+    candidates, status, loading, regenerating, error, stage, failureDetail,
     genProvider, setGenProvider, extraInputs, setExtraInputs,
     providers, dimensions, selections, setSelections,
     selectedDims, setSelectedDims,
-    steps, scoreColor, generate, doFinalize, reReviewOne, changeInput, patchCand,
+    steps, scoreColor, generate, regenerateOne, regenerateAll, moveVersion,
+    doFinalize, reReviewOne, changeInput, patchCand,
   } = logic
 
   const stepNums = ['①', '②', '③', '④']
@@ -117,42 +118,57 @@ export function ClassicGenerateView({ logic }: { logic: GenerateLogic }) {
       {candidates.length > 0 && (
         <div className="panel">
           <div className="panel-header"><div className="icon">✍️</div><h2>步骤2/3/4：候选文案 · 独立审核 · 定稿</h2><span className="tag">{candidates.length} 份</span></div>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>每份候选文案独立审核（综合打分 + 正向亲和 / 反向亲和 / 产品知识准确性）。可编辑后单份重审，逐份定稿保留。</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>每份候选文案独立审核（综合打分 + 正向亲和 / 反向亲和 / 产品知识准确性）。可编辑后单份重审，逐份定稿保留。重新生成会在同风格下累加新版本，左右切换对比。</p>
+          <div className="btn-row" style={{ justifyContent: 'flex-start', marginBottom: 10 }}>
+            <button className="btn btn-primary" onClick={regenerateAll} disabled={regenerating}>{regenerating ? '重新生成中…' : '🔄 全部重新生成'}</button>
+          </div>
           {candidates.map((c, i) => {
+            const v = c.versions[c.active]
             // 审核状态：已定稿优先；有 raw 审核原文=已审；编辑后文本与原候选不一致=待重审；否则待审
-            const reviewed = !!c.review.raw
-            const pendingRe = reviewed && c.edited !== c.text
-            const revStatus = c.finalized ? '已定稿' : pendingRe ? '待重审' : reviewed ? '已审' : '待审'
-            const revColor = c.finalized ? '#2e7d32' : pendingRe ? '#b8860b' : reviewed ? 'var(--gold-dark)' : '#8a8276'
+            const reviewed = !!v.review.raw
+            const pendingRe = reviewed && v.edited !== v.text
+            const revStatus = v.generating ? '生成中…' : v.finalized ? '已定稿' : pendingRe ? '待重审' : reviewed ? '已审' : '待审'
+            const revColor = v.generating ? '#8a8276' : v.finalized ? '#2e7d32' : pendingRe ? '#b8860b' : reviewed ? 'var(--gold-dark)' : '#8a8276'
+            const multi = c.versions.length > 1
             return (
-            <div className="list-item" key={i}>
+            <div className="list-item" key={c.slot}>
               <div className="item-head">
                 <span className="item-name">📝 候选文案 {i + 1}{c.style ? `（${c.style}）` : ''}</span>
+                {multi && (
+                  <span className="item-meta" style={{ marginRight: 10, fontWeight: 700 }}>
+                    <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 12, marginRight: 4 }} onClick={() => moveVersion(i, -1)} disabled={c.active === 0}>◀</button>
+                    {c.active + 1}/{c.versions.length}
+                    <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 12, marginLeft: 4 }} onClick={() => moveVersion(i, 1)} disabled={c.active === c.versions.length - 1}>▶</button>
+                  </span>
+                )}
                 <span className="item-meta" style={{ color: revColor, fontWeight: 700, marginRight: 10 }}>审核状态：{revStatus}</span>
-                {reviewed && <span className="item-meta" style={{ color: scoreColor(c.review.score), fontWeight: 700 }}>打分 {c.review.score}</span>}
+                {reviewed && <span className="item-meta" style={{ color: scoreColor(v.review.score), fontWeight: 700 }}>打分 {v.review.score}</span>}
               </div>
               <textarea className="copy-preview" style={{ width: '100%', minHeight: 140 }}
-                value={c.edited} onChange={(e) => patchCand(i, { edited: e.target.value, finalized: false })} />
-              {reviewed && (
+                value={v.edited} onChange={(e) => patchCand(i, { edited: e.target.value, finalized: false })} disabled={v.generating} placeholder={v.generating ? '正在生成…' : ''} />
+              {v.generating ? (
+                <div style={{ marginTop: 10, fontSize: 13, color: '#8a8276' }}>⏳ 生成 + 审核中…</div>
+              ) : reviewed && (
               <div className="review-box" style={{ marginTop: 10, fontSize: 13, lineHeight: 1.8 }}>
-                <div><strong style={{ color: 'var(--gold-dark)' }}>正向亲和：</strong>{c.review.positive || '—'}</div>
-                <div><strong style={{ color: 'var(--gold-dark)' }}>反向亲和：</strong>{c.review.reverse || '—'}</div>
-                <div><strong style={{ color: 'var(--gold-dark)' }}>产品知识准确性：</strong>{c.review.accuracy || '—'}</div>
-                {c.review.raw && (c.review.positive || c.review.reverse || c.review.accuracy) === '' && <div style={{ marginTop: 6, fontSize: 12, color: '#8a8276' }}>原文：{c.review.raw}</div>}
+                <div><strong style={{ color: 'var(--gold-dark)' }}>正向亲和：</strong>{v.review.positive || '—'}</div>
+                <div><strong style={{ color: 'var(--gold-dark)' }}>反向亲和：</strong>{v.review.reverse || '—'}</div>
+                <div><strong style={{ color: 'var(--gold-dark)' }}>产品知识准确性：</strong>{v.review.accuracy || '—'}</div>
+                {v.review.raw && (v.review.positive || v.review.reverse || v.review.accuracy) === '' && <div style={{ marginTop: 6, fontSize: 12, color: '#8a8276' }}>原文：{v.review.raw}</div>}
               </div>
               )}
               <div className="btn-row" style={{ justifyContent: 'flex-start' }}>
-                <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => copyText(c.edited).then((ok) => {
+                <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => copyText(v.edited).then((ok) => {
                   if (ok) { setCopiedIdx(i); setTimeout(() => setCopiedIdx(null), 1500) }
                 })}>{copiedIdx === i ? '✓ 已复制' : '📋 复制'}</button>
-                <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => reReviewOne(i)} disabled={c.reReviewing}>{c.reReviewing ? '审核中…' : '🔄 重新审核'}</button>
-                <button className="btn btn-success" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => doFinalize(i)} disabled={c.finalizing || c.finalized}>{c.finalized ? '✓ 已定稿' : c.finalizing ? '保存中…' : '✅ 定稿'}</button>
+                <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => regenerateOne(i)} disabled={v.generating}>{v.generating ? '生成中…' : '🔁 重新生成'}</button>
+                <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => reReviewOne(i)} disabled={v.reReviewing || v.generating}>{v.reReviewing ? '审核中…' : '🔄 重新审核'}</button>
+                <button className="btn btn-success" style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => doFinalize(i)} disabled={v.finalizing || v.finalized || v.generating}>{v.finalized ? '✓ 已定稿' : v.finalizing ? '保存中…' : '✅ 定稿'}</button>
               </div>
-              {c.prompts && (
+              {v.prompts && (
                 <details className="prompt-inspector">
                   <summary>查看提示词</summary>
-                  <div className="prompt-section"><span className="prompt-label">System</span><pre className="prompt-pre">{c.prompts.system || '(无)'}</pre></div>
-                  <div className="prompt-section"><span className="prompt-label">User</span><pre className="prompt-pre">{c.prompts.user}</pre></div>
+                  <div className="prompt-section"><span className="prompt-label">System</span><pre className="prompt-pre">{v.prompts.system || '(无)'}</pre></div>
+                  <div className="prompt-section"><span className="prompt-label">User</span><pre className="prompt-pre">{v.prompts.user}</pre></div>
                 </details>
               )}
             </div>

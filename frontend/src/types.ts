@@ -7,7 +7,11 @@ export type Dimension = { id: number; name: string; kind: 'value' | 'prompt'; ch
 export type KnowledgeItem = { series: string; body: string }
 // 审核结果结构化字段，与后端 ReviewFields (backend/review.py) 对齐；加审核维度需同步此处 + pipeline _LABELS + FinalizeInput。
 export type CandReview = { score: number; positive: string; reverse: string; accuracy: string; raw: string }
-export type Candidate = { text: string; style?: string; review: CandReview; edited: string; finalized: boolean; reReviewing: boolean; finalizing: boolean; prompts?: { system: string; user: string } }
+// 候选版本：一次生成（或重新生成）产出的单版文案 + 审核 + 提示词。
+// generating=true 表示该版本正在（重新）生成+审核中，text/review 为占位。
+export type CandVersion = { text: string; review: CandReview; edited: string; finalized: boolean; reReviewing: boolean; finalizing: boolean; generating: boolean; prompts?: { system: string; user: string } }
+// 候选槽位：一个风格槽位下可有多版（重新生成累加），active 指向当前展示的版本，左右切换对比。
+export type CandSlot = { slot: number; style: string; versions: CandVersion[]; active: number }
 export type FinalizedItem = { id: number; ts: string; provider: string; input_vars: string; selected_idx: number; text: string; review: string; score: number | null; positive: string; reverse: string; accuracy: string }
 export type Page = 'generate' | 'config' | 'slots' | 'options' | 'knowledge' | 'history' | 'docs'
 

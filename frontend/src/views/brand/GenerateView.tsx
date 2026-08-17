@@ -8,11 +8,12 @@ import { copyText } from '../../clipboard'
 export function BrandGenerateView({ logic }: { logic: GenerateLogic }) {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const {
-    candidates, status, loading, error, stage, failureDetail,
+    candidates, status, loading, regenerating, error, stage, failureDetail,
     genProvider, setGenProvider, extraInputs, setExtraInputs,
     providers, dimensions, selections, setSelections,
     selectedDims, setSelectedDims,
-    steps, scoreColor, generate, doFinalize, reReviewOne, changeInput, patchCand,
+    steps, scoreColor, generate, regenerateOne, regenerateAll, moveVersion,
+    doFinalize, reReviewOne, changeInput, patchCand,
   } = logic
 
   const stepNums = ['Ⅰ', 'Ⅱ', 'Ⅲ', 'Ⅳ']
@@ -131,40 +132,55 @@ export function BrandGenerateView({ logic }: { logic: GenerateLogic }) {
             <div className="bp-title">候选文案 · 独立审核 · 定稿</div>
             <span className="bp-tag">{candidates.length} 份</span>
           </div>
-          <p className="brand-panel-sub">每份候选文案独立审核（综合打分 + 正向亲和 / 反向亲和 / 产品知识准确性）。可编辑后单份重审，逐份定稿保留。</p>
+          <p className="brand-panel-sub">每份候选文案独立审核（综合打分 + 正向亲和 / 反向亲和 / 产品知识准确性）。可编辑后单份重审，逐份定稿保留。重新生成在同风格下累加新版本，左右切换对比。</p>
+          <div className="brand-btn-row" style={{ justifyContent: 'flex-start', marginBottom: 12 }}>
+            <button className="brand-btn brand-btn-primary" onClick={regenerateAll} disabled={regenerating}>{regenerating ? '重新生成中…' : '重新生成全部'}</button>
+          </div>
           {candidates.map((c, i) => {
-            const reviewed = !!c.review.raw
-            const pendingRe = reviewed && c.edited !== c.text
-            const revStatus = c.finalized ? '已定稿' : pendingRe ? '待重审' : reviewed ? '已审' : '待审'
-            const revColor = c.finalized ? '#9bbf6a' : pendingRe ? '#c9a35a' : reviewed ? 'var(--b-gold-soft)' : 'var(--b-muted)'
+            const v = c.versions[c.active]
+            const reviewed = !!v.review.raw
+            const pendingRe = reviewed && v.edited !== v.text
+            const revStatus = v.generating ? '生成中' : v.finalized ? '已定稿' : pendingRe ? '待重审' : reviewed ? '已审' : '待审'
+            const revColor = v.generating ? 'var(--b-muted)' : v.finalized ? '#9bbf6a' : pendingRe ? '#c9a35a' : reviewed ? 'var(--b-gold-soft)' : 'var(--b-muted)'
+            const multi = c.versions.length > 1
             return (
-              <div className="brand-cand" key={i}>
+              <div className="brand-cand" key={c.slot}>
                 <div className="brand-cand-head">
                   <span className="brand-cand-name">候选 {i + 1}{c.style ? ` · ${c.style}` : ''}</span>
+                  {multi && (
+                    <span className="brand-cand-meta" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <button className="brand-btn brand-btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => moveVersion(i, -1)} disabled={c.active === 0}>◀</button>
+                      {c.active + 1}/{c.versions.length}
+                      <button className="brand-btn brand-btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => moveVersion(i, 1)} disabled={c.active === c.versions.length - 1}>▶</button>
+                    </span>
+                  )}
                   <span className="brand-cand-meta" style={{ color: revColor }}>{revStatus}</span>
-                  {reviewed && <span className="brand-cand-score" style={{ color: scoreColor(c.review.score) }}>{c.review.score}</span>}
+                  {reviewed && <span className="brand-cand-score" style={{ color: scoreColor(v.review.score) }}>{v.review.score}</span>}
                 </div>
                 <textarea className="brand-copy-area"
-                  value={c.edited} onChange={(e) => patchCand(i, { edited: e.target.value, finalized: false })} />
-                {reviewed && (
+                  value={v.edited} onChange={(e) => patchCand(i, { edited: e.target.value, finalized: false })} disabled={v.generating} placeholder={v.generating ? '正在生成…' : ''} />
+                {v.generating ? (
+                  <div className="brand-review" style={{ color: 'var(--b-muted)' }}>生成 + 审核中…</div>
+                ) : reviewed && (
                   <div className="brand-review">
-                    <div className="br-item"><span className="br-label">正向亲和</span><span className="br-text">{c.review.positive || '—'}</span></div>
-                    <div className="br-item"><span className="br-label">反向亲和</span><span className="br-text">{c.review.reverse || '—'}</span></div>
-                    <div className="br-item"><span className="br-label">知识准确</span><span className="br-text">{c.review.accuracy || '—'}</span></div>
+                    <div className="br-item"><span className="br-label">正向亲和</span><span className="br-text">{v.review.positive || '—'}</span></div>
+                    <div className="br-item"><span className="br-label">反向亲和</span><span className="br-text">{v.review.reverse || '—'}</span></div>
+                    <div className="br-item"><span className="br-label">知识准确</span><span className="br-text">{v.review.accuracy || '—'}</span></div>
                   </div>
                 )}
                 <div className="brand-btn-row" style={{ justifyContent: 'flex-start' }}>
-                  <button className="brand-btn brand-btn-ghost" style={{ padding: '8px 16px', fontSize: 12 }} onClick={() => copyText(c.edited).then((ok) => {
+                  <button className="brand-btn brand-btn-ghost" style={{ padding: '8px 16px', fontSize: 12 }} onClick={() => copyText(v.edited).then((ok) => {
                     if (ok) { setCopiedIdx(i); setTimeout(() => setCopiedIdx(null), 1500) }
                   })}>{copiedIdx === i ? '✓ 已复制' : '复制'}</button>
-                  <button className="brand-btn brand-btn-ghost" style={{ padding: '8px 16px', fontSize: 12 }} onClick={() => reReviewOne(i)} disabled={c.reReviewing}>{c.reReviewing ? '审核中…' : '重新审核'}</button>
-                  <button className="brand-btn brand-btn-success" style={{ padding: '8px 16px', fontSize: 12 }} onClick={() => doFinalize(i)} disabled={c.finalizing || c.finalized}>{c.finalized ? '✓ 已定稿' : c.finalizing ? '保存中…' : '定稿'}</button>
+                  <button className="brand-btn brand-btn-ghost" style={{ padding: '8px 16px', fontSize: 12 }} onClick={() => regenerateOne(i)} disabled={v.generating}>{v.generating ? '生成中…' : '重新生成'}</button>
+                  <button className="brand-btn brand-btn-ghost" style={{ padding: '8px 16px', fontSize: 12 }} onClick={() => reReviewOne(i)} disabled={v.reReviewing || v.generating}>{v.reReviewing ? '审核中…' : '重新审核'}</button>
+                  <button className="brand-btn brand-btn-success" style={{ padding: '8px 16px', fontSize: 12 }} onClick={() => doFinalize(i)} disabled={v.finalizing || v.finalized || v.generating}>{v.finalized ? '✓ 已定稿' : v.finalizing ? '保存中…' : '定稿'}</button>
                 </div>
-                {c.prompts && (
+                {v.prompts && (
                   <details className="brand-prompt-inspector">
                     <summary>查看提示词</summary>
-                    <div className="brand-prompt-section"><span className="brand-prompt-label">System</span><pre className="brand-prompt-pre">{c.prompts.system || '(无)'}</pre></div>
-                    <div className="brand-prompt-section"><span className="brand-prompt-label">User</span><pre className="brand-prompt-pre">{c.prompts.user}</pre></div>
+                    <div className="brand-prompt-section"><span className="brand-prompt-label">System</span><pre className="brand-prompt-pre">{v.prompts.system || '(无)'}</pre></div>
+                    <div className="brand-prompt-section"><span className="brand-prompt-label">User</span><pre className="brand-prompt-pre">{v.prompts.user}</pre></div>
                   </details>
                 )}
               </div>
