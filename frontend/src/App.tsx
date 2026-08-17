@@ -53,7 +53,7 @@ function BackendDownBanner() {
 // ============ App ============
 
 function AppInner() {
-  const { theme, setTheme } = useTheme()
+  useTheme()   // 主题机制保留（仅 brand），未来可再接新主题
   const backendDown = useBackendHealth()
   const [page, setPage] = useState<typeof NAV_ITEMS[number]['key'] | 'docs'>('generate')
   // 仅跨页刷新信号——单消费者状态已就地进各页面
@@ -78,38 +78,13 @@ function AppInner() {
     </>
   )
 
-  if (theme === 'brand') {
-    return (
-      <>
-        {backendDown && <BackendDownBanner />}
-        <BrandApp page={page} setPage={setPage}>
-          {pageContent}
-        </BrandApp>
-      </>
-    )
-  }
-
-  // 经典版导航图标（新版侧栏在 BrandApp 内自带字形映射）
-  const classicIcon: Record<string, string> = {
-    generate: '✍️', slots: '🎨', options: '🎚️',
-    knowledge: '📚', history: '🗂️', config: '🔑',
-  }
-
   return (
-    <div>
+    <>
       {backendDown && <BackendDownBanner />}
-      <div className="topbar">
-        <h1>🍼 文案生成引擎</h1>
-        <div className="row">
-          {NAV_ITEMS.map((n) => (
-            <button key={n.key} className={'nav-btn' + (page === n.key ? ' active' : '')} onClick={() => setPage(n.key)}>{classicIcon[n.key]} {n.label}</button>
-          ))}
-          <button className={'nav-btn' + (page === 'docs' ? ' active' : '')} onClick={() => setPage('docs')} title="使用文档">📖 文档</button>
-          <button className="nav-btn" onClick={() => setTheme('brand')} title="切换到新版界面">🎨 新版</button>
-        </div>
-      </div>
-      {pageContent}
-    </div>
+      <BrandApp page={page} setPage={setPage}>
+        {pageContent}
+      </BrandApp>
+    </>
   )
 }
 

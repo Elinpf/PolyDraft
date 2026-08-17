@@ -123,20 +123,6 @@
 }
 .brand-nav-btn .bn-icon { font-size: 14px; opacity: 0.85; width: 18px; text-align: center; }
 
-.brand-back-link {
-  margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.15);
-  display: block; text-decoration: none;
-  color: #e8d8b8; font-size: 12px;
-  padding: 12px; border-radius: 10px;
-  border: 1px solid transparent;
-  transition: all 0.2s;
-  background: transparent;       /* 覆盖 button 默认白底 */
-  font-family: inherit;          /* 覆盖 button 默认字体 */
-  cursor: pointer; text-align: left; width: 100%;
-  appearance: none; -webkit-appearance: none;
-}
-.brand-back-link:hover { background: rgba(255, 255, 255, 0.10); color: #fff; }
-
 /* ===== 主区 ===== */
 .brand-main { flex: 1; min-width: 0; }
 .brand-container { max-width: 920px; margin: 0 auto; padding: 36px 44px 80px; }
@@ -382,7 +368,6 @@
   .brand-app { flex-direction: column; }
   .brand-sidebar { width: 100%; height: auto; position: relative; flex-direction: row; align-items: center; padding: 14px 18px; }
   .brand-nav { flex-direction: row; flex-wrap: wrap; gap: 2px; padding-top: 0; }
-  .brand-back-link { margin-top: 0; padding-top: 12px; border-top: none; border-left: 1px solid var(--b-glass-border); margin-left: 12px; }
   .brand-container { padding: 24px 18px 60px; }
 }
 @media (max-width: 640px) {

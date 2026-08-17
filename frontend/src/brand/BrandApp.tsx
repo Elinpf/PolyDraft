@@ -1,7 +1,6 @@
 import { type ReactNode } from 'react'
 import type { Page } from '../types'
 import { NAV_ITEMS } from '../nav'
-import { useTheme } from '../theme'
 
 // ============ 品牌高级感 · App 壳 ============
 // 左侧常驻文字侧栏 + 主区单栏线性内容流。
@@ -13,9 +12,7 @@ export function BrandApp({ page, setPage, children }: {
   setPage: (p: Page) => void
   children: ReactNode
 }) {
-  const { setTheme } = useTheme()
-
-  // 新版侧栏图标字形映射（经典版在 App.tsx 用 emoji）
+  // 侧栏图标字形映射
   const brandIcon: Record<string, string> = {
     generate: '✎', slots: '◈', options: '▤',
     knowledge: '◇', history: '⌛', config: '◯',
@@ -40,7 +37,6 @@ export function BrandApp({ page, setPage, children }: {
             </button>
           ))}
         </nav>
-        <button className="brand-back-link" onClick={() => setTheme('classic')}>← 返回经典版</button>
       </aside>
 
       <main className="brand-main">

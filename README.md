@@ -40,12 +40,9 @@
 
 ### 主题与界面
 
-前端做了 **逻辑/视图分离**：业务状态与 IO 收敛在 `logic/`（无 JSX），渲染层按主题切分在 `views/<theme>/`（纯渲染组件）。两套主题并存，按 `localStorage` 偏好（`copygen_theme`）切换，URL 不变：
+前端做了 **逻辑/视图分离**：业务状态与 IO 收敛在 `logic/`（无 JSX），渲染层在 `views/`（纯渲染组件）。当前为单一 **brand** 主题：浅暖底 + 半透白磨砂玻璃卡 + 莫兰迪棕左侧文字侧栏。主题机制（`theme.tsx`）保留，便于未来再接新主题；访问 `/new` 等价于 brand 偏好。
 
-- **classic**（默认）：经典实用风，顶部标签栏。
-- **brand**（品牌高级感）：浅暖底 + 半透白磨砂玻璃卡 + 莫兰迪棕左侧文字侧栏，访问 `/new` 可一键切到该主题。
-
-> 仅生成页迁移到了双主题视图；其余页面复用 `pages/` 经典组件，主题切换对其无影响。
+> 仅生成页迁移到了主题视图；其余页面复用 `pages/` 组件（共享 `App.css` 的 panel/btn 等样式）。
 
 ---
 
@@ -68,12 +65,12 @@ atm/
 ├── frontend/
 │   ├── src/
 │   │   ├── App.tsx         # 路由 + 常驻挂载 + 主题壳 + 后端健康检查
-│   │   ├── theme.tsx       # 主题机制（偏好切换，classic / brand）
+│   │   ├── theme.tsx       # 主题机制（偏好切换，当前仅 brand）
 │   │   ├── nav.ts          # 共享导航项常量
 │   │   ├── clipboard.ts    # 复制工具（非安全上下文 fallback）
 │   │   ├── types.ts        # 跨页类型
 │   │   ├── logic/          # 无 JSX 的业务逻辑（useGenerateLogic 等状态 + IO）
-│   │   ├── views/          # 主题视图（纯渲染）：classic/ + brand/
+│   │   ├── views/          # 主题视图（纯渲染）：brand/
 │   │   ├── brand/BrandApp.tsx  # 品牌高级感 UI 壳（左侧文字侧栏）
 │   │   ├── pages/          # 7 个页面入口（generate/slots/options/knowledge/history/config/docs）
 │   │   ├── App.css / brand-ui.css / index.css   # 样式
